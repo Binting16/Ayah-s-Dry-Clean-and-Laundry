@@ -3,7 +3,7 @@ import { formatPHP } from '../utils/currency.js';
 import { escapeHtml } from '../utils/sanitize.js';
 
 /**
- * Builds the HTML structure for the receipt
+ * Builds the HTML structure for the printable receipt
  * @param {Object} tx
  * @param {Object} settings
  * @returns {string}
@@ -13,6 +13,11 @@ export function buildReceiptHtml(tx, settings = {}) {
   const bizAddress = settings.businessAddress || 'Your Address Here';
   const bizTIN = settings.businessTIN || '000-000-000-000';
   const bizPhone = settings.businessPhone || '0900 000 0000';
+
+  const gcashName = settings.gcashName || '';
+  const gcashNum = settings.gcashNumber || '';
+  const mayaName = settings.mayaName || '';
+  const mayaNum = settings.mayaNumber || '';
 
   const rate = tx.type === 'express'
     ? (settings.rateExpress || 35)
@@ -41,7 +46,7 @@ export function buildReceiptHtml(tx, settings = {}) {
           <span>${escapeHtml(tx.code)}</span>
         </div>
         <div class="receipt-row">
-          <span>Date / Time:</span>
+          <span>Date & Time:</span>
           <span>${dateStr}</span>
         </div>
         <div class="receipt-row">
@@ -77,7 +82,7 @@ export function buildReceiptHtml(tx, settings = {}) {
         </div>
 
         <div class="receipt-row bold" style="margin-top:6px; color:${isPaid ? '#15803D' : '#B91C1C'};">
-          <span>Payment:</span>
+          <span>Payment Status:</span>
           <span>${paidText}</span>
         </div>
         ${paidDateStr ? `
@@ -87,14 +92,23 @@ export function buildReceiptHtml(tx, settings = {}) {
         </div>` : ''}
 
         <div class="receipt-row" style="margin-top:6px;">
-          <span>Current Status:</span>
+          <span>Status:</span>
           <span>${escapeHtml(tx.status || 'Received')}</span>
         </div>
+
+        ${(gcashNum || mayaNum) ? `
+          <hr class="receipt-divider">
+          <div style="font-size:0.8rem; margin:6px 0; background:#F8FAFB; padding:6px 8px; border-radius:4px;">
+            <strong style="display:block; margin-bottom:2px;">Online / Cashless Payment:</strong>
+            ${gcashNum ? `<div>GCash: <strong>${escapeHtml(gcashNum)}</strong> ${gcashName ? `(${escapeHtml(gcashName)})` : ''}</div>` : ''}
+            ${mayaNum ? `<div>Maya: <strong>${escapeHtml(mayaNum)}</strong> ${mayaName ? `(${escapeHtml(mayaName)})` : ''}</div>` : ''}
+          </div>
+        ` : ''}
       </div>
 
       <div class="receipt-footer">
         <p><strong>* Please present this receipt when claiming laundry.</strong></p>
-        <p>Thank you for choosing Ayah's Dry Clean & Laundry!</p>
+        <p><em>Wash, dry, fold, repeat.</em></p>
       </div>
     </div>
   `;
@@ -116,12 +130,10 @@ export function printReceipt(tx, settings = {}) {
 
   printArea.innerHTML = buildReceiptHtml(tx, settings);
 
-  // Set print mode class on body for media query sizing
   const pMode = settings.printMode || 'a4';
   document.body.classList.remove('print-mode-a4', 'print-mode-thermal-80', 'print-mode-thermal-58');
   document.body.classList.add(`print-mode-${pMode}`);
 
-  // Small delay to ensure styles and assets render
   setTimeout(() => {
     window.print();
   }, 100);

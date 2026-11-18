@@ -26,7 +26,7 @@
   <div class="app" id="app">
 
     <!-- Loading State -->
-    <div id="loadingBanner" class="loading-banner">Connecting to Google Sheets…</div>
+    <div id="loadingBanner" class="loading-banner">Connecting to laundry database…</div>
 
     <!-- LocalStorage / Offline mode banner -->
     <div id="dbBanner" class="db-banner" style="display: none;"></div>
@@ -41,28 +41,22 @@
         </svg>
         <div>
           <h1>Ayah's Dry Clean and Laundry</h1>
-          <p class="tagline">Track every drop-off, from Received to Released.</p>
+          <p class="tagline">Wash, dry, fold, repeat.</p>
         </div>
       </div>
-      <button class="icon-btn settings-btn" id="settingsBtn" title="Shop Settings & Pricing" aria-label="Settings">⚙️</button>
+      <button class="icon-btn settings-btn" id="settingsBtn" title="Shop Settings & Management" aria-label="Settings">⚙️</button>
     </header>
 
-    <!-- Top-Level Navigation Tabs -->
-    <nav class="top-nav" role="tablist">
-      <button class="top-nav-tab is-active" id="navTabLog" data-view="log">🧺 Laundry Log</button>
-      <button class="top-nav-tab" id="navTabBir" data-view="bir">📋 BIR & Financial Records</button>
-    </nav>
-
-    <!-- VIEW 1: LAUNDRY LOG (Operational Counter View) -->
-    <main id="viewLaundryLog" class="view-panel">
-      <!-- New Drop-off Form -->
+    <!-- COUNTER VIEW (Customer-Facing & Staff Workspace) -->
+    <main id="viewLaundryLog">
+      <!-- New Drop-off Form with Customer Live Total Display -->
       <section class="panel" id="formSection">
         <h2>New drop-off</h2>
         <form id="addForm" class="add-form" novalidate></form>
         <p class="hint" id="formHint"></p>
       </section>
 
-      <!-- Transactions Table -->
+      <!-- Active & Released Transactions Table -->
       <section class="panel table-panel" id="tableSection">
         <div class="table-toolbar" id="tableToolbar"></div>
         <div class="table-wrap">
@@ -75,23 +69,19 @@
       </section>
     </main>
 
-    <!-- VIEW 2: BIR & FINANCIAL RECORDS (Tax, Auditing & Annual Recaps) -->
-    <main id="viewBirRecords" class="view-panel" style="display: none;">
-      <section class="panel bir-panel" id="birSection"></section>
-    </main>
+    <!-- Discreet Counter Footer & Developer Watermark -->
+    <footer class="counter-footer">
+      <p class="watermark">Made by Jan Vincent "Binting" Aningat</p>
+    </footer>
 
   </div>
 
-  <!-- Sticky Bottom Footer: Collected Today -->
-  <footer class="sticky-footer" id="stickyFooter">
-    <div class="footer-content">
-      <div class="footer-pill">
-        <span class="footer-label">COLLECTED TODAY</span>
-        <span class="footer-amount" id="footerCollectedToday">₱0</span>
-        <span class="footer-count" id="footerPaidCount">(0 paid orders)</span>
-      </div>
+  <!-- BIR & FINANCIAL RECORDS OVERLAY (Opened from Settings drawer) -->
+  <div id="viewBirRecords" class="bir-overlay-view" style="display: none;">
+    <div class="bir-container">
+      <section class="panel bir-panel" id="birSection"></section>
     </div>
-  </footer>
+  </div>
 
   <!-- Settings Drawer Sidebar -->
   <aside class="settings-sidebar" id="settingsSidebar" style="display: none;"></aside>

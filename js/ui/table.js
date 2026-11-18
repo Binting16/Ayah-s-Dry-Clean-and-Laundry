@@ -5,7 +5,6 @@ import { escapeHtml } from '../utils/sanitize.js';
 import { showToast } from './toast.js';
 import { showModal } from './modal.js';
 import { printReceipt } from './receipt.js';
-import { renderFooter } from './footer.js';
 
 let appState = null;
 let appDb = null;
@@ -111,10 +110,8 @@ export function renderTable(state) {
     ? (state.allReleased || [])
     : (state.allActive || []);
 
-  // Filter out any deleted records from this view
   const nonDeleted = sourceList.filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED');
 
-  // Filter by search query and date
   const filtered = nonDeleted.filter(t => {
     if (query) {
       const matchCode = (t.code || '').toLowerCase().includes(query);
@@ -141,12 +138,10 @@ export function renderTable(state) {
   if (countActiveEl) countActiveEl.textContent = (state.allActive || []).filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED').length;
   if (countReleasedEl) countReleasedEl.textContent = (state.allReleased || []).filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED').length;
 
-  // Update active tab buttons
   document.querySelectorAll('#tableTabs .tab').forEach(b => {
     b.classList.toggle('is-active', b.dataset.tab === currentTab);
   });
 
-  // Table header
   const head = document.getElementById('txHead');
   if (head) {
     head.innerHTML = `
@@ -195,7 +190,7 @@ export function renderTable(state) {
       <td>
         <div class="table-actions">
           <button class="icon-btn print-btn" title="Print Receipt">🖨️</button>
-          <button class="icon-btn del delete-btn" title="Delete from Log">🗑️</button>
+          <button class="icon-btn del delete-btn" title="Delete from Workspace">🗑️</button>
         </div>
       </td>
     `;
@@ -219,7 +214,6 @@ export function renderTable(state) {
 
       showToast(`Order ${t.code} marked as ${nextPaid ? 'Paid' : 'Unpaid'}.`, 'info');
       renderTable(appState);
-      renderFooter(appState);
     });
     paidCell.appendChild(paidBtn);
 
@@ -247,7 +241,6 @@ export function renderTable(state) {
       await appDb.updateTransaction(t.code, { status: newStatus });
       t.status = newStatus;
 
-      // Re-bucket in memory
       if (newStatus === 'Released') {
         appState.allActive = appState.allActive.filter(item => item.code !== t.code);
         if (!appState.allReleased.some(item => item.code === t.code)) {
@@ -265,13 +258,13 @@ export function renderTable(state) {
     });
     statusCell.appendChild(sel);
 
-    // Delete action (Removes permanently from staff view, preserved in BIR)
+    // Delete action
     const deleteBtn = tr.querySelector('.delete-btn');
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
         showModal({
           title: `Delete Order ${t.code}?`,
-          message: `This will remove the transaction from your active Laundry Log. A copy will remain permanently archived in Google Sheets and the BIR Records tab for tax compliance.`,
+          message: `This will remove the transaction from your active Laundry Log. An audit copy remains saved in Google Sheets and the BIR Records view.`,
           confirmLabel: 'Delete Order',
           confirmStyle: 'danger',
           requireReason: true,
@@ -281,14 +274,12 @@ export function renderTable(state) {
             t.recordStatus = 'DELETED';
             t.deleteReason = reason;
 
-            // Remove from active/released arrays
             appState.allActive = appState.allActive.filter(item => item.code !== t.code);
             appState.allReleased = appState.allReleased.filter(item => item.code !== t.code);
             appState.allDeleted.unshift(t);
 
             showToast(`Order ${t.code} removed from workspace.`, 'info');
             renderTable(appState);
-            renderFooter(appState);
           }
         });
       });
@@ -302,7 +293,6 @@ export function renderTable(state) {
       });
     }
 
-    // Clicking code tag also prints/previews receipt
     const codeTag = tr.querySelector('.code-tag');
     if (codeTag) {
       codeTag.addEventListener('click', () => {

@@ -1,9 +1,8 @@
-import { computePrice } from '../utils/currency.js';
+import { computePrice, formatPHP } from '../utils/currency.js';
 import { validateDropOff } from '../utils/validation.js';
 import { showToast } from './toast.js';
 import { printReceipt } from './receipt.js';
 import { escapeHtml } from '../utils/sanitize.js';
-import { renderFooter } from './footer.js';
 
 let appState = null;
 let appDb = null;
@@ -19,6 +18,17 @@ export function initForm(state, db) {
   const minWeight = state.settings.minWeight || 5;
 
   form.innerHTML = `
+    <!-- Customer-Facing Live Total Banner -->
+    <div class="customer-total-banner" id="customerTotalBanner">
+      <div class="total-headline">
+        <span class="total-tag">Customer Total</span>
+        <span class="total-amount-display" id="liveTotalAmount">₱0</span>
+      </div>
+      <div class="total-calc-breakdown" id="liveTotalBreakdown">
+        Enter weight to calculate price
+      </div>
+    </div>
+
     <div class="form-group" style="position:relative;">
       <label for="fName">Customer Name *</label>
       <input required id="fName" type="text" placeholder="e.g. Juan Dela Cruz" autocomplete="off">
@@ -68,23 +78,47 @@ export function initForm(state, db) {
   const weightInput = document.getElementById('fWeight');
   const typeSelect = document.getElementById('fType');
   const priceInput = document.getElementById('fPrice');
+  const liveTotalAmount = document.getElementById('liveTotalAmount');
+  const liveTotalBreakdown = document.getElementById('liveTotalBreakdown');
   const suggestionsList = document.getElementById('nameSuggestions');
   const hintEl = document.getElementById('formHint');
 
-  function updatePrice() {
+  function updatePriceDisplay() {
     const w = parseFloat(weightInput.value) || 0;
     const t = typeSelect.value;
+    const rate = t === 'express' ? (appState.settings.rateExpress || 35) : (appState.settings.rateRegular || 20);
+    const serviceLabel = t === 'express' ? 'Express Service' : 'Regular Service';
+
     if (w > 0) {
       const calculated = computePrice(w, t, {
         regular: appState.settings.rateRegular,
         express: appState.settings.rateExpress
       });
+
+      // Update price input if it matches or is newly typed
       priceInput.value = calculated;
+
+      if (liveTotalAmount) liveTotalAmount.textContent = formatPHP(calculated);
+      if (liveTotalBreakdown) {
+        liveTotalBreakdown.innerHTML = `${w} kg × ₱${rate}/kg · ${serviceLabel}`;
+      }
+    } else {
+      if (liveTotalAmount) liveTotalAmount.textContent = '₱0';
+      if (liveTotalBreakdown) liveTotalBreakdown.textContent = 'Enter weight to calculate price';
     }
   }
 
-  weightInput.addEventListener('input', updatePrice);
-  typeSelect.addEventListener('change', updatePrice);
+  // If staff manually modifies the price input (discounts/special adjustments)
+  priceInput.addEventListener('input', () => {
+    const customVal = parseFloat(priceInput.value) || 0;
+    if (liveTotalAmount) liveTotalAmount.textContent = formatPHP(customVal);
+    if (liveTotalBreakdown) {
+      liveTotalBreakdown.innerHTML = `Custom Adjusted Price <span class="total-custom-badge">Discount/Special</span>`;
+    }
+  });
+
+  weightInput.addEventListener('input', updatePriceDisplay);
+  typeSelect.addEventListener('change', updatePriceDisplay);
 
   // Autocomplete typeahead for returning customers
   nameInput.addEventListener('input', () => {
@@ -161,17 +195,19 @@ export function initForm(state, db) {
         status: 'Received'
       });
 
-      // Reset form
+      // Reset form & customer price banner
       form.reset();
       priceInput.value = '';
       weightInput.min = appState.settings.minWeight || 5;
       weightInput.placeholder = appState.settings.minWeight || 5;
       suggestionsList.style.display = 'none';
 
+      if (liveTotalAmount) liveTotalAmount.textContent = '₱0';
+      if (liveTotalBreakdown) liveTotalBreakdown.textContent = 'Enter weight to calculate price';
+
       // Refresh in-memory lists
       appState.allActive.unshift(newTx);
       appState.notify();
-      renderFooter(appState);
 
       // Toast with instant receipt print action
       showToast(`Order ${newTx.code} added successfully!`, 'success', 6000, [

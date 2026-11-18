@@ -1,4 +1,21 @@
-/* BIR & Financial Records Tab Styles */
+/* BIR & Financial Records Dedicated View */
+
+.bir-overlay-view {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg);
+  z-index: 8500;
+  overflow-y: auto;
+  padding: 24px 20px 40px;
+}
+
+.bir-container {
+  max-width: 1140px;
+  margin: 0 auto;
+}
 
 .bir-panel {
   background: var(--surface);
@@ -21,7 +38,7 @@
 
 .bir-title h2 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.45rem;
   color: var(--primary-dark);
 }
 
@@ -36,6 +53,22 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.bir-back-btn {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--ink);
+  transition: all 0.15s ease;
+}
+
+.bir-back-btn:hover {
+  background: #E5ECEE;
 }
 
 .year-select-wrap {
@@ -183,4 +216,15 @@ tr.row-deleted {
 
 tr.row-deleted td {
   color: #7F1D1D;
+}
+
+.purge-btn {
+  color: var(--danger);
+  font-weight: 600;
+  border-color: #FECACA;
+}
+
+.purge-btn:hover {
+  background: var(--danger);
+  color: #FFFFFF;
 }

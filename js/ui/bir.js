@@ -1,8 +1,9 @@
-import { formatDateTime, parseDate, getToday, getThisWeek, getThisMonth, formatISO } from '../utils/dates.js';
+import { formatDateTime, parseDate, getToday, getThisWeek, getThisMonth } from '../utils/dates.js';
 import { formatPHP } from '../utils/currency.js';
 import { exportToCSV } from '../utils/export.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { showToast } from './toast.js';
+import { showModal } from './modal.js';
 import { printReceipt } from './receipt.js';
 
 let appState = null;
@@ -13,8 +14,21 @@ let currentSubFilter = 'all'; // 'all' | 'completed' | 'deleted'
 export function initBir(state, db) {
   appState = state;
   appDb = db;
+}
 
-  renderBirView();
+export function openBirView() {
+  const overlay = document.getElementById('viewBirRecords');
+  if (overlay) {
+    overlay.style.display = 'block';
+    renderBirView();
+  }
+}
+
+export function closeBirView() {
+  const overlay = document.getElementById('viewBirRecords');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
 }
 
 export async function renderBirView() {
@@ -23,8 +37,6 @@ export async function renderBirView() {
 
   const currentYear = appState.selectedYear || new Date().getFullYear();
   const sheetsUrl = appState.settings.googleSheetsUrl || '';
-
-  // Generate list of selectable years
   const availableYears = [currentYear - 1, currentYear, currentYear + 1];
 
   container.innerHTML = `
@@ -35,6 +47,10 @@ export async function renderBirView() {
       </div>
 
       <div class="bir-controls">
+        <button class="bir-back-btn" id="btnBirBackToCounter">
+          ✕ Back to Counter
+        </button>
+
         <div class="year-select-wrap">
           <label for="birYearSelect">Year</label>
           <select id="birYearSelect" class="year-select">
@@ -67,7 +83,7 @@ export async function renderBirView() {
       <div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--ink-secondary);">Loading summary metrics…</div>
     </div>
 
-    <!-- Sub-Filter Pills & Table Header -->
+    <!-- Sub-Filter Pills & Count -->
     <div class="bir-subtabs">
       <div class="bir-filter-pills">
         <button class="bir-pill ${currentSubFilter === 'all' ? 'is-active' : ''}" data-filter="all">All Records</button>
@@ -100,6 +116,9 @@ export async function renderBirView() {
       <p class="empty-state" id="birEmptyState">No records found for this period.</p>
     </div>
   `;
+
+  // Back button
+  container.querySelector('#btnBirBackToCounter')?.addEventListener('click', closeBirView);
 
   // Wire year select
   const yearSel = container.querySelector('#birYearSelect');
@@ -155,7 +174,6 @@ async function getFilteredBirRecords() {
   else if (activePeriod === 'month') range = getThisMonth();
 
   return all.filter(t => {
-    // Period date filtering
     if (range) {
       const d = parseDate(t.createdAt);
       if (!d) return false;
@@ -163,7 +181,6 @@ async function getFilteredBirRecords() {
       if (time < range.start.getTime() || time > range.end.getTime()) return false;
     }
 
-    // Sub-filter
     const isDeleted = String(t.recordStatus).toUpperCase() === 'DELETED';
     if (currentSubFilter === 'completed' && isDeleted) return false;
     if (currentSubFilter === 'deleted' && !isDeleted) return false;
@@ -175,7 +192,6 @@ async function getFilteredBirRecords() {
 export async function loadBirData() {
   const records = await getFilteredBirRecords();
 
-  // Metric computations for the selected period
   const totalVolume = records.filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED')
     .reduce((s, t) => s + (Number(t.weight) || 0), 0);
   const grossSales = records.filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED')
@@ -264,13 +280,33 @@ export async function loadBirData() {
       </td>
       <td>${escapeHtml(t.deleteReason || '—')}</td>
       <td>
-        <button class="icon-btn print-btn" title="Print Receipt">🖨️</button>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button class="icon-btn print-btn" title="Print Receipt">🖨️</button>
+          ${isDeleted ? `<button class="icon-btn purge-btn" title="Permanently Erase from Database" data-code="${t.code}">🗑️</button>` : ''}
+        </div>
       </td>
     `;
 
     tr.querySelector('.print-btn')?.addEventListener('click', () => {
       printReceipt(t, appState.settings);
     });
+
+    const purgeBtn = tr.querySelector('.purge-btn');
+    if (purgeBtn) {
+      purgeBtn.addEventListener('click', () => {
+        showModal({
+          title: `Permanently Erase ${t.code}?`,
+          message: `This will completely erase order ${t.code} from Google Sheets and your local database. This cannot be undone.`,
+          confirmLabel: 'Permanently Erase',
+          confirmStyle: 'danger',
+          onConfirm: async () => {
+            await appDb.purgeTransaction(t.code, appState.selectedYear);
+            showToast(`Order ${t.code} permanently erased.`, 'info');
+            loadBirData();
+          }
+        });
+      });
+    }
 
     body.appendChild(tr);
   }

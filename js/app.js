@@ -1,10 +1,8 @@
 import { db } from './db.js';
 import { state } from './state.js';
 import { initHeader } from './ui/header.js';
-import { initNav } from './ui/nav.js';
 import { initForm } from './ui/form.js';
 import { initTable, renderTable } from './ui/table.js';
-import { renderFooter } from './ui/footer.js';
 import { initBir, loadBirData } from './ui/bir.js';
 import { initSettings } from './ui/settings.js';
 import { showToast } from './ui/toast.js';
@@ -44,7 +42,6 @@ async function boot() {
           const count = await migration.importFn();
           await refreshAllData();
           state.notify();
-          renderFooter(state);
           showToast(`Successfully imported ${count} transactions!`, 'success');
         }
       });
@@ -58,30 +55,14 @@ async function boot() {
 
   // 5. Initialize UI Modules
   initHeader(state);
-
-  initNav(state, (view) => {
-    if (view === 'bir') {
-      loadBirData();
-    } else {
-      renderTable(state);
-      renderFooter(state);
-    }
-  });
-
   initForm(state, db);
   initTable(state, db);
   initBir(state, db);
   initSettings(state, db);
-  renderFooter(state);
 
   // 6. State change subscriptions
   state.subscribe((s) => {
-    if (s.currentView === 'log') {
-      renderTable(s);
-      renderFooter(s);
-    } else if (s.currentView === 'bir') {
-      loadBirData();
-    }
+    renderTable(s);
   });
 
   // 7. Hide loading banner

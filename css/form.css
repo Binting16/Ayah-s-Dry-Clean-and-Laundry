@@ -5,6 +5,60 @@
   align-items: end;
 }
 
+/* Customer-Facing Live Total Banner */
+.customer-total-banner {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #E6F3F4 0%, #D8EEEE 100%);
+  border: 1.5px solid #A2D5D9;
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-bottom: 4px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.total-headline {
+  display: flex;
+  flex-direction: column;
+}
+
+.total-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--primary-dark);
+}
+
+.total-amount-display {
+  font-family: var(--font-display);
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  line-height: 1.15;
+}
+
+.total-calc-breakdown {
+  font-size: 0.88rem;
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
+.total-custom-badge {
+  background: #FEF3C7;
+  color: #B45309;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 .form-group {
   position: relative;
   display: flex;

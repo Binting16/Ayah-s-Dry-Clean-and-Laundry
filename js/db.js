@@ -1,5 +1,5 @@
 import { GOOGLE_SHEETS_WEBAPP_URL, DEFAULT_SETTINGS, STORAGE_PREFIX } from './config.js';
-import { generateCode } from './utils/codes.js';
+import { generateYearCode } from './utils/codes.js';
 import { formatISO, formatTime, parseDate } from './utils/dates.js';
 
 let mode = 'localStorage';
@@ -9,6 +9,7 @@ let webAppUrl = '';
 const KEY_TX = `${STORAGE_PREFIX}:transactions`;
 const KEY_SETTINGS = `${STORAGE_PREFIX}:settings`;
 const KEY_CUSTOMERS = `${STORAGE_PREFIX}:customers`;
+const KEY_CASHFLOW = `${STORAGE_PREFIX}:cashflow`;
 
 function getLocal(key, defaultVal) {
   try {
@@ -44,7 +45,7 @@ async function callSheetsApi(action, payload = {}) {
     const res = await fetch(webAppUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8' // Text/plain avoids CORS preflight OPTIONS rejection in Apps Script
+        'Content-Type': 'text/plain;charset=utf-8' // Text/plain avoids CORS preflight OPTIONS rejection
       },
       body: JSON.stringify({ action, ...payload }),
       signal: controller.signal
@@ -157,13 +158,21 @@ export const db = {
    */
   async addTransaction(tx) {
     const settings = await this.getSettings();
-    const nextCounter = (settings.counter || 0) + 1;
-    const code = tx.code || generateCode(nextCounter);
-
     const now = new Date();
+    const currentYear = now.getFullYear();
+
+    // Auto-reset counter on new year
+    let nextCounter = Number(settings.counter) || 0;
+    if (Number(settings.counterYear) !== currentYear) {
+      nextCounter = 0;
+    }
+    nextCounter += 1;
+
+    const code = tx.code || generateYearCode(currentYear, nextCounter);
+
     const timestamp = now.getTime();
-    const dateStr = formatISO(now);   // e.g. 2026-11-18
-    const timeStr = formatTime(now);  // e.g. 14:54:27
+    const dateStr = formatISO(now);
+    const timeStr = formatTime(now);
 
     const isPaid = Boolean(tx.paid);
 
@@ -191,8 +200,8 @@ export const db = {
     list.unshift(newRecord);
     setLocal(KEY_TX, list);
 
-    // Update settings counter
-    await this.updateSettings({ counter: nextCounter });
+    // Update settings counter and active year
+    await this.updateSettings({ counter: nextCounter, counterYear: currentYear });
 
     // Upsert customer info
     await this.upsertCustomer(newRecord.name, newRecord.phone);
@@ -205,7 +214,7 @@ export const db = {
           return res.transaction;
         }
       } catch (e) {
-        console.warn('Failed to add transaction to Google Sheets, saved in local offline buffer:', e);
+        console.warn('Failed to add transaction to Google Sheets, saved in local buffer:', e);
       }
     }
 
@@ -223,7 +232,6 @@ export const db = {
       try {
         const res = await callSheetsApi('getTransactions', { year, includeDeleted });
         if (res && Array.isArray(res.transactions)) {
-          // Update local cache
           setLocal(KEY_TX, res.transactions);
           return res.transactions;
         }
@@ -252,7 +260,7 @@ export const db = {
   },
 
   /**
-   * Update an existing transaction (e.g. status, paid toggle)
+   * Update an existing transaction
    * @param {string} code
    * @param {Object} updates
    */
@@ -274,7 +282,7 @@ export const db = {
   },
 
   /**
-   * Delete transaction (Staff view permanent delete, preserved in Google Sheets & BIR)
+   * Soft-delete transaction (Removed from counter, preserved in BIR)
    * @param {string} code
    * @param {string} reason
    */
@@ -295,6 +303,107 @@ export const db = {
         console.warn('Sheets deleteTransaction failed:', e);
       }
     }
+  },
+
+  /**
+   * Hard-purge transaction completely from database
+   * @param {string} code
+   * @param {number} [year]
+   */
+  async purgeTransaction(code, year = new Date().getFullYear()) {
+    let list = getLocal(KEY_TX, []);
+    list = list.filter(t => t.code !== code);
+    setLocal(KEY_TX, list);
+
+    if (mode === 'google-sheets') {
+      try {
+        await callSheetsApi('purgeTransaction', { code, year });
+      } catch (e) {
+        console.warn('Sheets purgeTransaction failed:', e);
+      }
+    }
+  },
+
+  /**
+   * Clear all test data for a given year and reset counter to 0
+   * @param {number} [year]
+   */
+  async clearTestData(year = new Date().getFullYear()) {
+    // Keep only transactions that do not belong to this year
+    const list = getLocal(KEY_TX, []);
+    const remaining = list.filter(t => {
+      const d = parseDate(t.createdAt);
+      return d && d.getFullYear() !== Number(year);
+    });
+    setLocal(KEY_TX, remaining);
+
+    // Reset settings counter
+    await this.updateSettings({ counter: 0, counterYear: year });
+
+    if (mode === 'google-sheets') {
+      try {
+        await callSheetsApi('clearTestData', { year });
+      } catch (e) {
+        console.warn('Sheets clearTestData failed:', e);
+      }
+    }
+  },
+
+  /**
+   * Add a petty cash / delivery cashflow movement (IN / OUT)
+   * @param {Object} entry
+   */
+  async addCashflow(entry) {
+    const now = new Date();
+    const entryId = 'CF-' + now.getTime().toString(36).toUpperCase();
+    const dateStr = formatISO(now);
+    const timeStr = formatTime(now);
+
+    const record = {
+      entryId,
+      createdAt: now.getTime(),
+      date: dateStr,
+      time: timeStr,
+      type: (entry.type || 'OUT').toUpperCase(),
+      amount: Number(entry.amount) || 0,
+      category: entry.category || 'General',
+      notes: entry.notes || ''
+    };
+
+    const cashflows = getLocal(KEY_CASHFLOW, []);
+    cashflows.unshift(record);
+    setLocal(KEY_CASHFLOW, cashflows);
+
+    if (mode === 'google-sheets') {
+      try {
+        await callSheetsApi('addCashflow', { entry: record });
+      } catch (e) {
+        console.warn('Sheets addCashflow failed:', e);
+      }
+    }
+
+    return record;
+  },
+
+  /**
+   * Fetch cashflow entries
+   * @param {number} [limit=100]
+   */
+  async getCashflow(limit = 100) {
+    if (mode === 'google-sheets') {
+      try {
+        const res = await callSheetsApi('getCashflow', { limit });
+        if (res && Array.isArray(res.cashflow)) {
+          setLocal(KEY_CASHFLOW, res.cashflow);
+          return res.cashflow;
+        }
+      } catch (e) {
+        console.warn('Sheets getCashflow failed, using local cache:', e);
+      }
+    }
+
+    const list = getLocal(KEY_CASHFLOW, []);
+    return list.slice(0, limit);
   },
 
   /**

@@ -11,10 +11,15 @@ export const DEFAULT_SETTINGS = {
   rateExpress: 35,
   minWeight: 5,
   counter: 0,
+  counterYear: new Date().getFullYear(),
   businessName: "Ayah's Dry Clean and Laundry",
   businessAddress: "Your Address Here",
   businessTIN: "000-000-000-000",
   businessPhone: "0900 000 0000",
+  gcashName: "",
+  gcashNumber: "",
+  mayaName: "",
+  mayaNumber: "",
   printMode: "a4", // 'a4' | 'thermal-80' | 'thermal-58'
   googleSheetsUrl: ""
 };
@@ -28,4 +33,12 @@ export const DELETE_REASONS = [
   "Pricing correction",
   "Customer changed mind",
   "Other"
+];
+
+export const CASHFLOW_CATEGORIES = [
+  "Delivery / Parcel",
+  "Gas & Electricity",
+  "Detergent & Supplies",
+  "Household / Food",
+  "Other Expense"
 ];
