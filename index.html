@@ -1,419 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Laundry Log</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #F7F9F9;
-    --surface: #FFFFFF;
-    --border: #E1E8E8;
-    --ink: #16302E;
-    --ink-soft: #5A6E6C;
-    --primary: #1F6F78;
-    --primary-dark: #164F56;
-    --danger: #C1533A;
-    --mono: 'JetBrains Mono', monospace;
-    --display: 'Space Grotesk', sans-serif;
-    --body-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: var(--body-font); background: var(--bg); color: var(--ink); }
-  .app { max-width: 1080px; margin: 0 auto; padding: 24px 20px 60px; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ayah's Dry Clean and Laundry</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 
-  header.topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; padding-bottom:20px; border-bottom: 1px solid var(--border); margin-bottom:24px; }
-  .brand { display:flex; gap:14px; align-items:center; }
-  .brand-icon { width:44px; height:44px; flex-shrink:0; }
-  .brand h1 { font-family: var(--display); font-size: 1.6rem; margin:0; letter-spacing:-0.01em; color: var(--primary-dark); }
-  .brand p.tagline { margin:2px 0 0; color: var(--ink-soft); font-size:0.85rem; }
-  .rates { display:flex; gap:16px; background: var(--surface); border:1px solid var(--border); padding:10px 14px; border-radius:10px; }
-  .rates label { display:flex; flex-direction:column; gap:4px; font-size:0.68rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; }
-  .rates input { font-family: var(--mono); font-size:0.95rem; border:1px solid var(--border); border-radius:6px; padding:4px 6px; width:76px; color:var(--ink); }
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 
-  .stats { display:grid; grid-template-columns: repeat(3,1fr); gap:14px; margin-bottom:28px; }
-  .stat-card { background: var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
-  .stat-value { display:block; font-family: var(--display); font-size:1.8rem; color: var(--primary); }
-  .stat-label { font-size:0.75rem; color: var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; }
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/form.css">
+  <link rel="stylesheet" href="css/table.css">
+  <link rel="stylesheet" href="css/receipt.css">
+  <link rel="stylesheet" href="css/responsive.css">
 
-  .panel { background: var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; margin-bottom:22px; }
-  .panel h2 { font-family: var(--display); font-size:1.05rem; margin:0 0 14px; color: var(--primary-dark); }
-
-  .add-form { display:grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap:14px; align-items:end; }
-  .add-form label { display:flex; flex-direction:column; gap:6px; font-size:0.76rem; color: var(--ink-soft); }
-  .add-form input, .add-form select { font-family: var(--body-font); font-size:0.95rem; padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--ink); }
-  .btn-primary { grid-column: 1/-1; justify-self:start; background: var(--primary); color:#fff; border:none; padding:10px 22px; border-radius:8px; font-size:0.95rem; font-weight:600; cursor:pointer; transition: background .15s ease; }
-  .btn-primary:hover { background: var(--primary-dark); }
-  .hint { color: var(--danger); font-size:0.82rem; min-height:1em; margin:10px 0 0; }
-
-  .table-toolbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
-  .table-subtitle { margin:2px 0 0; font-size:0.78rem; color: var(--ink-soft); max-width:420px; }
-  #search { padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; min-width:220px; margin-top:2px; }
-
-  .table-wrap { overflow-x:auto; }
-  table { width:100%; border-collapse:collapse; font-size:0.88rem; }
-  thead th { text-align:left; padding:8px 10px; color: var(--ink-soft); font-size:0.7rem; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--border); white-space:nowrap; }
-  tbody td { padding:10px; border-bottom:1px solid var(--border); vertical-align:middle; white-space:nowrap; }
-  tbody tr:hover { background: #F4F8F8; }
-
-  .code-tag { font-family: var(--mono); background: var(--primary-dark); color:#fff; padding:3px 10px 3px 18px; border-radius: 4px; position:relative; font-size:0.8rem; letter-spacing:.02em; }
-  .code-tag::before { content:''; position:absolute; left:6px; top:50%; transform:translateY(-50%); width:5px; height:5px; border-radius:50%; background:#fff; opacity:.85; }
-
-  .badge { padding:3px 9px; border-radius:20px; font-size:0.76rem; font-weight:600; }
-  .type-regular { background:#E4EEEF; color: var(--primary-dark); }
-  .type-express { background:#FCE9D3; color:#9A5B14; }
-
-  .tabs { display:flex; gap:6px; border-bottom:1px solid var(--border); margin-bottom:6px; }
-  .tab { background:transparent; border:none; border-bottom:2px solid transparent; padding:9px 14px; font-size:0.88rem; font-weight:600; color: var(--ink-soft); cursor:pointer; margin-bottom:-1px; display:flex; align-items:center; gap:8px; }
-  .tab:hover { color: var(--ink); }
-  .tab.is-active { color: var(--primary-dark); border-bottom-color: var(--primary); }
-  .tab-muted:not(.is-active) { opacity:.75; }
-  .tab-count { background:#E4EEEF; color: var(--primary-dark); font-size:0.72rem; padding:1px 8px; border-radius:20px; font-family: var(--mono); }
-
-  .paid-date { font-size:0.7rem; color: var(--ink-soft); margin-top:3px; }
-  .paid-toggle { border:none; border-radius:20px; padding:5px 12px; font-size:0.76rem; font-weight:600; cursor:pointer; }
-  .is-paid { background:#E1F3E6; color:#2E7D46; }
-  .is-unpaid { background:#FBE7E2; color: var(--danger); }
-
-  .status-select { border:1px solid var(--border); border-radius:20px; padding:5px 10px; font-size:0.78rem; font-weight:600; background:#fff; cursor:pointer; }
-  .status-received { color: #6B8CAE; }
-  .status-ongoing { color: #B8730C; }
-  .status-finished { color: var(--primary); }
-  .status-released { color: #2E7D46; }
-
-  .icon-btn { border:none; background:transparent; color:var(--ink-soft); cursor:pointer; font-size:1rem; padding:4px 8px; border-radius:6px; }
-  .icon-btn:hover { background:#FBE7E2; color: var(--danger); }
-
-  .empty-state { text-align:center; color: var(--ink-soft); padding:30px 0; font-size:0.9rem; display:none; }
-  #loadingBanner { text-align:center; padding:10px; color: var(--ink-soft); font-size:0.85rem; }
-
-  input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset:2px; }
-
-  @media (max-width:640px) {
-    header.topbar { flex-direction:column; }
-    .rates { width:100%; justify-content:space-between; }
-    .stats { grid-template-columns:1fr; }
-  }
-</style>
+  <!-- Firebase SDK (Compat scripts for pure browser static hosting) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
-<div class="app">
+  <div class="app" id="app">
 
-  <div id="loadingBanner">Loading saved data…</div>
+    <!-- Loading banner -->
+    <div id="loadingBanner" class="loading-banner">Loading laundry records…</div>
 
-  <header class="topbar">
-    <div class="brand">
-      <svg class="brand-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="4" y="4" width="36" height="36" rx="10" fill="#1F6F78"/>
-        <circle cx="16" cy="16" r="3.5" fill="#F7F9F9"/>
-        <path d="M14 30h16M14 24h10" stroke="#F7F9F9" stroke-width="2.5" stroke-linecap="round"/>
-      </svg>
-      <div>
-        <h1>Laundry Log</h1>
-        <p class="tagline">Track every drop-off, from Received to Released.</p>
+    <!-- LocalStorage / Offline mode banner -->
+    <div id="dbBanner" class="db-banner" style="display: none;"></div>
+
+    <!-- Topbar Header -->
+    <header class="topbar" id="header">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="#1F6F78"/>
+          <circle cx="16" cy="16" r="3.5" fill="#F7F9F9"/>
+          <path d="M14 30h16M14 24h10" stroke="#F7F9F9" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <h1>Ayah's Dry Clean and Laundry</h1>
+          <p class="tagline">Track every drop-off, from Received to Released.</p>
+        </div>
       </div>
-    </div>
-    <div class="rates">
-      <label>Regular ₱/kg <input id="rateRegular" type="number" min="0" step="1"></label>
-      <label>Express ₱/kg <input id="rateExpress" type="number" min="0" step="1"></label>
-    </div>
-  </header>
+      <button class="icon-btn settings-btn" id="settingsBtn" title="Shop Settings & Pricing" aria-label="Settings">⚙️</button>
+    </header>
 
-  <section class="stats">
-    <div class="stat-card"><span class="stat-value" id="statTotal">0</span><span class="stat-label">Active orders</span></div>
-    <div class="stat-card"><span class="stat-value" id="statUnpaid">0</span><span class="stat-label">Unpaid</span></div>
-    <div class="stat-card"><span class="stat-value" id="statRevenue">₱0</span><span class="stat-label">Collected</span></div>
-  </section>
+    <!-- Stats Row -->
+    <section class="stats" id="statsSection"></section>
 
-  <section class="panel">
-    <h2>New drop-off</h2>
-    <form id="addForm" class="add-form">
-      <label>Customer name <input required id="fName" type="text" placeholder="Juan Dela Cruz"></label>
-      <label>Cellphone <input id="fPhone" type="tel" placeholder="09xx xxx xxxx (optional)"></label>
-      <label>Weight (kg) <input required id="fWeight" type="number" min="5" step="0.5" placeholder="5"></label>
-      <label>Service
-        <select id="fType">
-          <option value="regular">Regular</option>
-          <option value="express">Express</option>
-        </select>
-      </label>
-      <label>Price (₱) <input required id="fPrice" type="number" min="0" step="1"></label>
-      <label>Payment
-        <select id="fPaid">
-          <option value="unpaid">Unpaid</option>
-          <option value="paid">Paid (timestamp saved)</option>
-        </select>
-      </label>
-      <button type="submit" class="btn-primary">Add transaction</button>
-    </form>
-    <p class="hint" id="formHint"></p>
-  </section>
+    <!-- New Drop-off Form -->
+    <section class="panel" id="formSection">
+      <h2>New drop-off</h2>
+      <form id="addForm" class="add-form" novalidate></form>
+      <p class="hint" id="formHint"></p>
+    </section>
 
-  <section class="panel table-panel">
-    <div class="table-toolbar">
-      <div>
-        <h2>Transactions</h2>
-        <p class="table-subtitle" id="tableSubtitle"></p>
+    <!-- Transactions Table -->
+    <section class="panel table-panel" id="tableSection">
+      <div class="table-toolbar" id="tableToolbar"></div>
+      <div class="table-wrap">
+        <table>
+          <thead id="txHead"></thead>
+          <tbody id="txBody"></tbody>
+        </table>
+        <p class="empty-state" id="emptyState"></p>
       </div>
-      <input id="search" type="search" placeholder="Search name, phone, or code">
-    </div>
-    <div class="tabs" role="tablist">
-      <button class="tab is-active" data-tab="active" role="tab">Active <span class="tab-count" id="countActive">0</span></button>
-      <button class="tab tab-muted" data-tab="released" role="tab">Released <span class="tab-count" id="countReleased">0</span></button>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th><th>Date</th><th>Customer</th><th>Cellphone</th><th>Weight</th>
-            <th>Service</th><th>Price</th><th>Paid</th><th>Status</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="txBody"></tbody>
-      </table>
-      <p class="empty-state" id="emptyState">No active orders right now. New drop-offs will show here.</p>
-    </div>
-  </section>
+    </section>
 
-</div>
+    <!-- Reports Section -->
+    <section class="panel reports-panel" id="reportsSection"></section>
 
-<script>
-  const STATUS_OPTIONS = ['Received','Ongoing','Finished','Released'];
-  let state = { counter: 0, transactions: [] };
-  let rates = { regular: 20, express: 35 };
+  </div>
 
-  async function loadData() {
-    try {
-      const shop = await window.storage.get('shop-data', false);
-      if (shop && shop.value) state = JSON.parse(shop.value);
-    } catch (e) { /* nothing saved yet */ }
-    try {
-      const r = await window.storage.get('rates', false);
-      if (r && r.value) rates = JSON.parse(r.value);
-    } catch (e) { /* nothing saved yet */ }
+  <!-- Settings Sidebar -->
+  <aside class="settings-sidebar" id="settingsSidebar" style="display: none;"></aside>
 
-    document.getElementById('rateRegular').value = rates.regular;
-    document.getElementById('rateExpress').value = rates.express;
-    document.getElementById('loadingBanner').style.display = 'none';
-    render();
-  }
+  <!-- Confirmation Modal Container -->
+  <div id="modalOverlay" class="modal-overlay" style="display: none;"></div>
 
-  async function saveShopData() {
-    try {
-      const result = await window.storage.set('shop-data', JSON.stringify(state), false);
-      if (!result) console.error('Save failed: no result returned');
-    } catch (e) {
-      console.error('Storage error', e);
-      alert("Couldn't save. Please check your connection and try again.");
-    }
-  }
+  <!-- Non-blocking Toasts Container -->
+  <div id="toastContainer" class="toast-container"></div>
 
-  async function saveRates() {
-    try {
-      await window.storage.set('rates', JSON.stringify(rates), false);
-    } catch (e) {
-      console.error('Storage error', e);
-    }
-  }
+  <!-- Printable Receipt Area (rendered during printing) -->
+  <div id="receiptPrintArea" class="receipt-print-area"></div>
 
-  function toLetters(num) {
-    let s = '';
-    while (num > 0) {
-      const rem = (num - 1) % 26;
-      s = String.fromCharCode(65 + rem) + s;
-      num = Math.floor((num - 1) / 26);
-    }
-    return s;
-  }
-
-  function codeFor(n) {
-    const block = Math.floor((n - 1) / 999) + 1;
-    const number = ((n - 1) % 999) + 1;
-    return toLetters(block) + number;
-  }
-
-  function computePrice(weight, type) {
-    const rate = type === 'express' ? rates.express : rates.regular;
-    return Math.round(weight * rate);
-  }
-
-  function updatePriceSuggestion() {
-    const w = parseFloat(document.getElementById('fWeight').value) || 0;
-    const t = document.getElementById('fType').value;
-    if (w > 0) document.getElementById('fPrice').value = computePrice(w, t);
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function formatDate(ts) {
-    if (!ts) return '—';
-    return new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
-  function formatDateTime(ts) {
-    if (!ts) return '';
-    const d = new Date(ts);
-    const date = d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-    const time = d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
-    return date + ' · ' + time;
-  }
-
-  let currentTab = 'active';
-
-  async function togglePaid(code) {
-    const tx = state.transactions.find(t => t.code === code);
-    if (!tx) return;
-    tx.paid = !tx.paid;
-    tx.paidAt = tx.paid ? Date.now() : null;
-    await saveShopData();
-    render();
-  }
-
-  async function changeStatus(code, value) {
-    const tx = state.transactions.find(t => t.code === code);
-    if (!tx) return;
-    tx.status = value;
-    await saveShopData();
-    render();
-  }
-
-  async function deleteTx(code) {
-    if (!confirm(`Remove transaction ${code}? This can't be undone.`)) return;
-    state.transactions = state.transactions.filter(t => t.code !== code);
-    await saveShopData();
-    render();
-  }
-
-  function render() {
-    const q = document.getElementById('search').value.trim().toLowerCase();
-    const active = state.transactions.filter(t => t.status !== 'Released');
-    const released = state.transactions.filter(t => t.status === 'Released');
-    const source = currentTab === 'released' ? released : active;
-    const list = source.filter(t =>
-      !q || t.code.toLowerCase().includes(q) || t.name.toLowerCase().includes(q) || (t.phone && t.phone.includes(q))
-    );
-
-    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === currentTab));
-    document.getElementById('countActive').textContent = active.length;
-    document.getElementById('countReleased').textContent = released.length;
-    document.getElementById('tableSubtitle').textContent = currentTab === 'released'
-      ? 'Orders already handed to customers. Change the status to bring one back to Active.'
-      : 'Showing Received, Ongoing, and Finished orders.';
-    document.getElementById('emptyState').textContent = currentTab === 'released'
-      ? 'No released orders yet.'
-      : 'No active orders right now. New drop-offs will show here.';
-
-    const body = document.getElementById('txBody');
-    body.innerHTML = '';
-    document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
-
-    for (const t of list) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><span class="code-tag">${t.code}</span></td>
-        <td>${formatDate(t.createdAt)}</td>
-        <td>${escapeHtml(t.name)}</td>
-        <td>${t.phone ? escapeHtml(t.phone) : '—'}</td>
-        <td>${t.weight} kg</td>
-        <td><span class="badge type-${t.type}">${t.type === 'express' ? 'Express' : 'Regular'}</span></td>
-        <td>₱${Number(t.price).toLocaleString()}</td>
-        <td class="paid-cell"></td>
-        <td class="status-cell"></td>
-        <td><button class="icon-btn del" title="Delete" data-code="${t.code}">✕</button></td>
-      `;
-
-      const paidBtn = document.createElement('button');
-      paidBtn.className = 'paid-toggle ' + (t.paid ? 'is-paid' : 'is-unpaid');
-      paidBtn.textContent = t.paid ? 'Paid' : 'Unpaid';
-      paidBtn.addEventListener('click', () => togglePaid(t.code));
-      const paidCell = tr.querySelector('.paid-cell');
-      paidCell.appendChild(paidBtn);
-      if (t.paid && t.paidAt) {
-        const stamp = document.createElement('div');
-        stamp.className = 'paid-date';
-        stamp.textContent = formatDateTime(t.paidAt);
-        paidCell.appendChild(stamp);
-      }
-
-      const sel = document.createElement('select');
-      sel.className = 'status-select status-' + t.status.toLowerCase();
-      for (const s of STATUS_OPTIONS) {
-        const opt = document.createElement('option');
-        opt.value = s;
-        opt.textContent = s;
-        if (s === t.status) opt.selected = true;
-        sel.appendChild(opt);
-      }
-      sel.addEventListener('change', (e) => changeStatus(t.code, e.target.value));
-      tr.querySelector('.status-cell').appendChild(sel);
-
-      body.appendChild(tr);
-    }
-
-    body.querySelectorAll('.del').forEach(btn => {
-      btn.addEventListener('click', () => deleteTx(btn.dataset.code));
-    });
-
-    document.getElementById('statTotal').textContent = active.length;
-    document.getElementById('statUnpaid').textContent = active.filter(t => !t.paid).length;
-    const revenue = active.filter(t => t.paid).reduce((a, t) => a + Number(t.price), 0);
-    document.getElementById('statRevenue').textContent = '₱' + revenue.toLocaleString();
-  }
-
-  document.getElementById('fWeight').addEventListener('input', updatePriceSuggestion);
-  document.getElementById('fType').addEventListener('change', updatePriceSuggestion);
-  document.getElementById('search').addEventListener('input', render);
-  document.querySelectorAll('.tab').forEach(btn => {
-    btn.addEventListener('click', () => { currentTab = btn.dataset.tab; render(); });
-  });
-
-  document.getElementById('rateRegular').addEventListener('change', async (e) => {
-    rates.regular = parseFloat(e.target.value) || 0;
-    await saveRates();
-  });
-  document.getElementById('rateExpress').addEventListener('change', async (e) => {
-    rates.express = parseFloat(e.target.value) || 0;
-    await saveRates();
-  });
-
-  document.getElementById('addForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const hint = document.getElementById('formHint');
-    const name = document.getElementById('fName').value.trim();
-    const phone = document.getElementById('fPhone').value.trim();
-    const weight = parseFloat(document.getElementById('fWeight').value);
-    const type = document.getElementById('fType').value;
-    const price = parseFloat(document.getElementById('fPrice').value);
-
-    if (!name) { hint.textContent = 'Please enter the customer name.'; return; }
-    if (isNaN(weight) || weight < 5) { hint.textContent = 'Weight must be at least 5 kg.'; return; }
-    if (isNaN(price) || price < 0) { hint.textContent = 'Please enter a valid price.'; return; }
-    hint.textContent = '';
-
-    const isPaid = document.getElementById('fPaid').value === 'paid';
-    const now = Date.now();
-
-    state.counter += 1;
-    const code = codeFor(state.counter);
-    state.transactions.unshift({
-      code, name, phone, weight, type, price,
-      paid: isPaid, paidAt: isPaid ? now : null,
-      status: 'Received', createdAt: now
-    });
-
-    await saveShopData();
-    e.target.reset();
-    document.getElementById('fPrice').value = '';
-    render();
-  });
-
-  loadData();
-</script>
+  <!-- App Entry Module -->
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

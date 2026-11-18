@@ -1,0 +1,143 @@
+/* Receipt container on screen (hidden by default) */
+.receipt-print-area {
+  display: none;
+}
+
+/* Receipt container layout for printing and preview modal */
+.receipt-card {
+  background: #FFFFFF;
+  color: #000000;
+  font-family: var(--font-body);
+  padding: 24px;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.receipt-header {
+  text-align: center;
+  margin-bottom: 16px;
+  border-bottom: 1px dashed #666666;
+  padding-bottom: 14px;
+}
+
+.receipt-logo {
+  max-width: 60px;
+  margin: 0 auto 8px;
+  display: block;
+}
+
+.receipt-header h2 {
+  font-size: 1.15rem;
+  margin: 0 0 4px;
+  color: #000000;
+  font-family: var(--font-display);
+}
+
+.receipt-header p {
+  font-size: 0.8rem;
+  color: #333333;
+  margin: 2px 0;
+}
+
+.receipt-title {
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin: 12px 0;
+  text-transform: uppercase;
+}
+
+.receipt-details {
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+.receipt-row.bold {
+  font-weight: 700;
+}
+
+.receipt-divider {
+  border: none;
+  border-top: 1px dashed #444444;
+  margin: 10px 0;
+}
+
+.receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.15rem;
+  font-weight: 800;
+  padding: 6px 0;
+}
+
+.receipt-footer {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #444444;
+  margin-top: 18px;
+  border-top: 1px dashed #666666;
+  padding-top: 12px;
+}
+
+.receipt-footer p {
+  margin: 4px 0;
+}
+
+/* Print Media Styles */
+@media print {
+  /* Hide all app contents except the printable receipt */
+  body * {
+    visibility: hidden;
+  }
+
+  .app, .modal-overlay, .toast-container, .settings-sidebar {
+    display: none !important;
+  }
+
+  .receipt-print-area,
+  .receipt-print-area * {
+    visibility: visible;
+  }
+
+  .receipt-print-area {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #FFFFFF !important;
+  }
+
+  /* Thermal Print Specific Overrides */
+  body.print-mode-thermal-80 {
+    margin: 0;
+    padding: 0;
+  }
+
+  body.print-mode-thermal-80 .receipt-card {
+    width: 80mm;
+    max-width: 80mm;
+    padding: 4mm;
+    font-size: 11px;
+  }
+
+  body.print-mode-thermal-58 .receipt-card {
+    width: 58mm;
+    max-width: 58mm;
+    padding: 2mm;
+    font-size: 10px;
+  }
+
+  @page {
+    margin: 5mm;
+  }
+}

@@ -1,0 +1,96 @@
+/* Tablet: 768px and below */
+@media (max-width: 768px) {
+  .app {
+    padding: 16px 12px 60px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .add-form {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .table-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .date-filter-group {
+    justify-content: space-between;
+  }
+
+  .reports-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reports-period-buttons {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .settings-sidebar {
+    max-width: 100%;
+  }
+}
+
+/* Mobile: 480px and below */
+@media (max-width: 480px) {
+  header.topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .brand h1 {
+    font-size: 1.4rem;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-submit-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-primary {
+    width: 100%;
+  }
+
+  .tabs {
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+
+  .toast-container {
+    width: 95vw;
+    bottom: 12px;
+  }
+
+  .modal-card {
+    padding: 18px;
+  }
+}
