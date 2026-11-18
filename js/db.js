@@ -1,9 +1,9 @@
-import { FIREBASE_CONFIG, DEFAULT_SETTINGS, STORAGE_PREFIX } from './config.js';
+import { GOOGLE_SHEETS_WEBAPP_URL, DEFAULT_SETTINGS, STORAGE_PREFIX } from './config.js';
 import { generateCode } from './utils/codes.js';
-import { parseDate } from './utils/dates.js';
+import { formatISO, formatTime, parseDate } from './utils/dates.js';
 
 let mode = 'localStorage';
-let firestoreInstance = null;
+let webAppUrl = '';
 
 // LocalStorage Helper Keys
 const KEY_TX = `${STORAGE_PREFIX}:transactions`;
@@ -28,41 +28,59 @@ function setLocal(key, val) {
   }
 }
 
+/**
+ * Send request to Google Apps Script Web App
+ * @param {string} action
+ * @param {Object} [payload={}]
+ * @returns {Promise<any>}
+ */
+async function callSheetsApi(action, payload = {}) {
+  if (!webAppUrl) throw new Error('No Google Sheets Web App URL configured');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const res = await fetch(webAppUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8' // Text/plain avoids CORS preflight OPTIONS rejection in Apps Script
+      },
+      body: JSON.stringify({ action, ...payload }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Server error');
+    return data;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
 export const db = {
   /**
-   * Initializes database connection. Falls back to localStorage if Firebase is unconfigured or unavailable.
-   * @returns {Promise<'firestore'|'localStorage'>}
+   * Initializes database connection.
+   * Tests Google Sheets Web App if URL is present; falls back to localStorage otherwise.
+   * @returns {Promise<'google-sheets'|'localStorage'>}
    */
   async init() {
-    const isConfigured = FIREBASE_CONFIG &&
-      FIREBASE_CONFIG.apiKey &&
-      FIREBASE_CONFIG.apiKey !== 'REPLACE_ME' &&
-      FIREBASE_CONFIG.projectId !== 'REPLACE_ME';
+    const localSettings = getLocal(KEY_SETTINGS, DEFAULT_SETTINGS);
+    const candidateUrl = (localSettings.googleSheetsUrl || GOOGLE_SHEETS_WEBAPP_URL || '').trim();
 
-    if (isConfigured && typeof window.firebase !== 'undefined') {
+    if (candidateUrl && candidateUrl !== 'REPLACE_ME_WITH_APPS_SCRIPT_WEBAPP_URL' && candidateUrl.startsWith('https://')) {
+      webAppUrl = candidateUrl;
       try {
-        if (!window.firebase.apps.length) {
-          window.firebase.initializeApp(FIREBASE_CONFIG);
+        const ping = await callSheetsApi('ping');
+        if (ping && ping.success) {
+          mode = 'google-sheets';
+          return 'google-sheets';
         }
-        firestoreInstance = window.firebase.firestore();
-
-        // Enable offline persistence
-        try {
-          await firestoreInstance.enablePersistence({ synchronizeTabs: true });
-        } catch (persErr) {
-          if (persErr.code === 'failed-precondition') {
-            console.warn('Firestore persistence failed: multiple tabs open');
-          } else if (persErr.code === 'unimplemented') {
-            console.warn('Firestore persistence not supported in this browser');
-          }
-        }
-
-        mode = 'firestore';
-        return 'firestore';
       } catch (err) {
-        console.warn('Firebase init failed, falling back to localStorage:', err);
-        mode = 'localStorage';
-        return 'localStorage';
+        console.warn('Google Sheets Web App unavailable, operating in offline localStorage mode:', err);
       }
     }
 
@@ -74,23 +92,28 @@ export const db = {
     return mode;
   },
 
+  getWebAppUrl() {
+    return webAppUrl;
+  },
+
+  setWebAppUrl(url) {
+    webAppUrl = (url || '').trim();
+  },
+
   /**
    * Fetch current shop settings
    * @returns {Promise<Object>}
    */
   async getSettings() {
-    if (mode === 'firestore' && firestoreInstance) {
+    if (mode === 'google-sheets') {
       try {
-        const docRef = firestoreInstance.collection('settings').doc('shop');
-        const snap = await docRef.get();
-        if (snap.exists) {
-          return { ...DEFAULT_SETTINGS, ...snap.data() };
+        const res = await callSheetsApi('getSettings');
+        if (res && res.settings) {
+          setLocal(KEY_SETTINGS, { ...DEFAULT_SETTINGS, ...res.settings });
+          return { ...DEFAULT_SETTINGS, ...res.settings };
         }
-        // Initialize doc if missing
-        await docRef.set(DEFAULT_SETTINGS);
-        return { ...DEFAULT_SETTINGS };
       } catch (e) {
-        console.warn('Firestore getSettings failed, using local fallback:', e);
+        console.warn('Sheets getSettings failed, using local cache:', e);
       }
     }
 
@@ -107,169 +130,229 @@ export const db = {
    * @param {Object} updates
    */
   async updateSettings(updates) {
-    if (mode === 'firestore' && firestoreInstance) {
+    const current = await this.getSettings();
+    const merged = { ...current, ...updates };
+    setLocal(KEY_SETTINGS, merged);
+
+    if (updates.googleSheetsUrl !== undefined) {
+      webAppUrl = (updates.googleSheetsUrl || '').trim();
+    }
+
+    if (mode === 'google-sheets' || (webAppUrl && webAppUrl !== 'REPLACE_ME_WITH_APPS_SCRIPT_WEBAPP_URL')) {
       try {
-        const docRef = firestoreInstance.collection('settings').doc('shop');
-        await docRef.set(updates, { merge: true });
+        await callSheetsApi('updateSettings', { settings: updates });
+        mode = 'google-sheets';
       } catch (e) {
-        console.warn('Firestore updateSettings failed, saving locally:', e);
+        console.warn('Failed to sync settings to Google Sheets:', e);
       }
     }
 
-    const current = await this.getSettings();
-    const updated = { ...current, ...updates };
-    setLocal(KEY_SETTINGS, updated);
+    return merged;
   },
 
   /**
-   * Add a new drop-off transaction
+   * Add a new drop-off transaction with automatic date and time
    * @param {Object} tx
    * @returns {Promise<Object>}
    */
   async addTransaction(tx) {
     const settings = await this.getSettings();
     const nextCounter = (settings.counter || 0) + 1;
-    const code = generateCode(nextCounter);
-    const now = Date.now();
+    const code = tx.code || generateCode(nextCounter);
+
+    const now = new Date();
+    const timestamp = now.getTime();
+    const dateStr = formatISO(now);   // e.g. 2026-11-18
+    const timeStr = formatTime(now);  // e.g. 14:54:27
+
+    const isPaid = Boolean(tx.paid);
 
     const newRecord = {
       code,
+      createdAt: timestamp,
+      date: dateStr,
+      time: timeStr,
       name: (tx.name || '').trim(),
       phone: (tx.phone || '').trim(),
       weight: parseFloat(tx.weight) || 0,
       type: tx.type === 'express' ? 'express' : 'regular',
       price: Math.round(Number(tx.price)) || 0,
-      paid: Boolean(tx.paid),
-      paidAt: tx.paid ? (tx.paidAt || now) : null,
+      paid: isPaid,
+      paidAt: isPaid ? (tx.paidAt || timestamp) : null,
       status: tx.status || 'Received',
-      createdAt: tx.createdAt || now,
-      updatedAt: now,
-      voided: false,
-      voidedAt: null,
-      voidReason: null,
+      recordStatus: 'ACTIVE',
+      deleteReason: '',
+      deletedAt: null,
       notes: tx.notes || ''
     };
 
-    // Update counter in settings
+    // Save locally
+    const list = getLocal(KEY_TX, []);
+    list.unshift(newRecord);
+    setLocal(KEY_TX, list);
+
+    // Update settings counter
     await this.updateSettings({ counter: nextCounter });
 
     // Upsert customer info
     await this.upsertCustomer(newRecord.name, newRecord.phone);
 
-    if (mode === 'firestore' && firestoreInstance) {
+    // Sync to Google Sheets
+    if (mode === 'google-sheets') {
       try {
-        const docRef = await firestoreInstance.collection('transactions').add(newRecord);
-        return { id: docRef.id, ...newRecord };
+        const res = await callSheetsApi('addTransaction', { transaction: newRecord });
+        if (res && res.transaction) {
+          return res.transaction;
+        }
       } catch (e) {
-        console.warn('Firestore addTransaction failed, writing to local storage:', e);
+        console.warn('Failed to add transaction to Google Sheets, saved in local offline buffer:', e);
       }
     }
 
-    // LocalStorage fallback
-    const id = 'local_' + now + '_' + Math.random().toString(36).substr(2, 6);
-    const stored = { id, ...newRecord };
-    const list = getLocal(KEY_TX, []);
-    list.unshift(stored);
-    setLocal(KEY_TX, list);
-    return stored;
+    return newRecord;
   },
 
   /**
-   * Update an existing transaction
-   * @param {string} id
+   * Fetch transactions
+   * @param {number} [year]
+   * @param {boolean} [includeDeleted=false]
+   * @returns {Promise<Array<Object>>}
+   */
+  async getTransactions(year = new Date().getFullYear(), includeDeleted = false) {
+    if (mode === 'google-sheets') {
+      try {
+        const res = await callSheetsApi('getTransactions', { year, includeDeleted });
+        if (res && Array.isArray(res.transactions)) {
+          // Update local cache
+          setLocal(KEY_TX, res.transactions);
+          return res.transactions;
+        }
+      } catch (e) {
+        console.warn('Sheets getTransactions failed, using local fallback:', e);
+      }
+    }
+
+    const localList = getLocal(KEY_TX, []);
+    return localList
+      .filter(t => {
+        if (!includeDeleted && String(t.recordStatus).toUpperCase() === 'DELETED') {
+          return false;
+        }
+        if (year) {
+          const d = parseDate(t.createdAt);
+          if (d && d.getFullYear() !== Number(year)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const ta = parseDate(a.createdAt)?.getTime() || 0;
+        const tb = parseDate(b.createdAt)?.getTime() || 0;
+        return tb - ta;
+      });
+  },
+
+  /**
+   * Update an existing transaction (e.g. status, paid toggle)
+   * @param {string} code
    * @param {Object} updates
    */
-  async updateTransaction(id, updates) {
-    const now = Date.now();
-    const safeUpdates = { ...updates, updatedAt: now };
-
-    if (mode === 'firestore' && firestoreInstance && !id.startsWith('local_')) {
-      try {
-        await firestoreInstance.collection('transactions').doc(id).update(safeUpdates);
-        return;
-      } catch (e) {
-        console.warn('Firestore updateTransaction failed:', e);
-      }
-    }
-
+  async updateTransaction(code, updates) {
     const list = getLocal(KEY_TX, []);
-    const idx = list.findIndex(t => t.id === id || t.code === id);
+    const idx = list.findIndex(t => t.code === code);
     if (idx !== -1) {
-      list[idx] = { ...list[idx], ...safeUpdates };
+      list[idx] = { ...list[idx], ...updates, updatedAt: Date.now() };
       setLocal(KEY_TX, list);
     }
+
+    if (mode === 'google-sheets') {
+      try {
+        await callSheetsApi('updateTransaction', { code, updates });
+      } catch (e) {
+        console.warn('Sheets updateTransaction failed:', e);
+      }
+    }
   },
 
   /**
-   * Soft-delete (void) a transaction with audit reason
-   * @param {string} id
+   * Delete transaction (Staff view permanent delete, preserved in Google Sheets & BIR)
+   * @param {string} code
    * @param {string} reason
    */
-  async voidTransaction(id, reason) {
-    const now = Date.now();
-    await this.updateTransaction(id, {
-      voided: true,
-      voidedAt: now,
-      voidReason: reason || 'Not specified'
-    });
+  async deleteTransaction(code, reason) {
+    const list = getLocal(KEY_TX, []);
+    const idx = list.findIndex(t => t.code === code);
+    if (idx !== -1) {
+      list[idx].recordStatus = 'DELETED';
+      list[idx].deleteReason = reason || 'Staff deleted';
+      list[idx].deletedAt = Date.now();
+      setLocal(KEY_TX, list);
+    }
+
+    if (mode === 'google-sheets') {
+      try {
+        await callSheetsApi('deleteTransaction', { code, reason });
+      } catch (e) {
+        console.warn('Sheets deleteTransaction failed:', e);
+      }
+    }
   },
 
   /**
-   * Fetch active and completed transactions (non-voided)
-   * @returns {Promise<Array<Object>>}
+   * Fetch daily, monthly, and annual sales recap
+   * @param {number} [year]
+   * @returns {Promise<Object>}
    */
-  async getTransactions() {
-    if (mode === 'firestore' && firestoreInstance) {
+  async getRecap(year = new Date().getFullYear()) {
+    if (mode === 'google-sheets') {
       try {
-        const snap = await firestoreInstance.collection('transactions')
-          .orderBy('createdAt', 'desc')
-          .get();
-        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const res = await callSheetsApi('getRecap', { year });
+        if (res && res.recap) return res.recap;
       } catch (e) {
-        console.warn('Firestore getTransactions failed, falling back to local:', e);
+        console.warn('Sheets getRecap failed, calculating locally:', e);
       }
     }
 
-    const list = getLocal(KEY_TX, []);
-    return list.sort((a, b) => {
-      const ta = parseDate(a.createdAt)?.getTime() || 0;
-      const tb = parseDate(b.createdAt)?.getTime() || 0;
-      return tb - ta;
-    });
-  },
+    // Local calculation fallback
+    const all = await this.getTransactions(year, true);
+    const annual = { totalOrders: 0, totalWeight: 0, grossSales: 0, collected: 0, unpaid: 0, deleted: 0 };
+    const daily = {};
+    const monthly = {};
 
-  /**
-   * Fetch voided transactions
-   * @returns {Promise<Array<Object>>}
-   */
-  async getVoidedTransactions() {
-    const all = await this.getTransactions();
-    return all.filter(t => Boolean(t.voided));
-  },
+    for (const t of all) {
+      const isDeleted = String(t.recordStatus).toUpperCase() === 'DELETED';
+      if (isDeleted) {
+        annual.deleted++;
+        continue;
+      }
 
-  /**
-   * Fetch all transactions (including voided) for audit & CSV export
-   * @returns {Promise<Array<Object>>}
-   */
-  async getAllTransactions() {
-    return await this.getTransactions();
-  },
+      const dateStr = t.date || formatISO(t.createdAt);
+      const monthStr = dateStr.substring(0, 7);
+      const weight = Number(t.weight) || 0;
+      const price = Number(t.price) || 0;
+      const isPaid = Boolean(t.paid);
 
-  /**
-   * Filter transactions by date range
-   * @param {Date} from
-   * @param {Date} to
-   * @returns {Promise<Array<Object>>}
-   */
-  async getTransactionsForPeriod(from, to) {
-    const all = await this.getTransactions();
-    const fromTime = from ? new Date(from).getTime() : 0;
-    const toTime = to ? new Date(to).getTime() : Infinity;
+      annual.totalOrders++;
+      annual.totalWeight += weight;
+      annual.grossSales += price;
+      if (isPaid) annual.collected += price;
+      else annual.unpaid += price;
 
-    return all.filter(t => {
-      const tTime = parseDate(t.createdAt)?.getTime() || 0;
-      return tTime >= fromTime && tTime <= toTime;
-    });
+      if (!daily[dateStr]) daily[dateStr] = { orders: 0, weight: 0, sales: 0, collected: 0, unpaid: 0 };
+      daily[dateStr].orders++;
+      daily[dateStr].weight += weight;
+      daily[dateStr].sales += price;
+      if (isPaid) daily[dateStr].collected += price;
+      else daily[dateStr].unpaid += price;
+
+      if (!monthly[monthStr]) monthly[monthStr] = { orders: 0, weight: 0, sales: 0, collected: 0, unpaid: 0 };
+      monthly[monthStr].orders++;
+      monthly[monthStr].weight += weight;
+      monthly[monthStr].sales += price;
+      if (isPaid) monthly[monthStr].collected += price;
+      else monthly[monthStr].unpaid += price;
+    }
+
+    return { daily, monthly, annual };
   },
 
   /**
@@ -298,19 +381,6 @@ export const db = {
     }
 
     setLocal(KEY_CUSTOMERS, customers);
-
-    if (mode === 'firestore' && firestoreInstance) {
-      try {
-        const custRef = firestoreInstance.collection('customers').doc(cleanName.toLowerCase());
-        await custRef.set({
-          name: cleanName,
-          phone: (phone || '').trim(),
-          lastVisit: Date.now()
-        }, { merge: true });
-      } catch (e) {
-        // silent fail for customer suggest sync
-      }
-    }
   },
 
   /**
@@ -329,29 +399,21 @@ export const db = {
   },
 
   /**
-   * Check for legacy data from window.storage and import if new database is empty
-   * @returns {Promise<{ found: boolean, count: number, importFn: Function }>}
+   * Migration check for earlier storage
    */
   async checkLegacyMigration() {
     let rawData = null;
     try {
       if (window.storage && typeof window.storage.get === 'function') {
         const res = await window.storage.get('shop-data', false);
-        if (res && res.value) {
-          rawData = JSON.parse(res.value);
-        }
+        if (res && res.value) rawData = JSON.parse(res.value);
       }
-    } catch (e) {
-      // not available
-    }
+    } catch (e) {}
 
     if (!rawData) {
-      // Check if localStorage has old format
       const oldLocal = localStorage.getItem('shop-data');
       if (oldLocal) {
-        try {
-          rawData = JSON.parse(oldLocal);
-        } catch (e) {}
+        try { rawData = JSON.parse(oldLocal); } catch (e) {}
       }
     }
 
@@ -360,22 +422,21 @@ export const db = {
         found: true,
         count: rawData.transactions.length,
         importFn: async () => {
-          let imported = 0;
-          for (const oldTx of rawData.transactions) {
+          let count = 0;
+          for (const old of rawData.transactions) {
             await this.addTransaction({
-              name: oldTx.name,
-              phone: oldTx.phone || '',
-              weight: oldTx.weight,
-              type: oldTx.type,
-              price: oldTx.price,
-              paid: Boolean(oldTx.paid),
-              paidAt: oldTx.paidAt || null,
-              status: oldTx.status || 'Received',
-              createdAt: oldTx.createdAt || Date.now()
+              name: old.name,
+              phone: old.phone || '',
+              weight: old.weight,
+              type: old.type,
+              price: old.price,
+              paid: Boolean(old.paid),
+              paidAt: old.paidAt || null,
+              status: old.status || 'Received'
             });
-            imported++;
+            count++;
           }
-          return imported;
+          return count;
         }
       };
     }

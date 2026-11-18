@@ -19,17 +19,19 @@ export function updateDbBanner(state) {
     banner.style.display = 'flex';
     banner.innerHTML = `
       <div class="db-banner-content">
-        <span>💾 <strong>Local Storage Mode:</strong> Records are saved in this browser. To sync across devices and cloud backup for BIR, configure Firebase in <code>js/config.js</code>.</span>
+        <span>💾 <strong>Local Storage Mode:</strong> Records are saved in this browser. To enable live Google Sheets sync and annual cloud backups, paste your Apps Script URL in <a href="#" id="bannerOpenSettings">Settings (⚙️)</a>.</span>
       </div>
       <button class="db-banner-close" title="Dismiss banner">&times;</button>
     `;
 
-    const closeBtn = banner.querySelector('.db-banner-close');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        banner.style.display = 'none';
-      });
-    }
+    banner.querySelector('#bannerOpenSettings')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      openSettings(state);
+    });
+
+    banner.querySelector('.db-banner-close')?.addEventListener('click', () => {
+      banner.style.display = 'none';
+    });
   } else {
     banner.style.display = 'none';
   }

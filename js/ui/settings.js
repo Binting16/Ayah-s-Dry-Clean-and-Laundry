@@ -31,6 +31,15 @@ export function openSettings(state) {
     </div>
 
     <div class="settings-group">
+      <h3>Google Sheets Database</h3>
+      <div class="settings-field">
+        <label for="setSheetsUrl">Apps Script Web App URL</label>
+        <input type="url" id="setSheetsUrl" placeholder="https://script.google.com/macros/s/.../exec" value="${escapeHtml(s.googleSheetsUrl || '')}">
+        <span class="help-text">Deploy <code>code.gs</code> in your Google Sheet as a Web App and paste the URL here for live cloud sync.</span>
+      </div>
+    </div>
+
+    <div class="settings-group">
       <h3>Pricing & Minimums</h3>
       <div class="settings-field">
         <label for="setRateReg">Regular Rate (₱/kg)</label>
@@ -45,7 +54,7 @@ export function openSettings(state) {
       <div class="settings-field">
         <label for="setMinWeight">Minimum Weight (kg)</label>
         <input type="number" id="setMinWeight" min="0.5" step="0.5" value="${s.minWeight || 5}">
-        <span class="help-text">Adjust minimum requirement as operating costs change.</span>
+        <span class="help-text">Adjust minimum requirement as gas and operational costs change.</span>
       </div>
     </div>
 
@@ -81,7 +90,7 @@ export function openSettings(state) {
           <option value="thermal-80" ${s.printMode === 'thermal-80' ? 'selected' : ''}>Thermal POS (80mm width)</option>
           <option value="thermal-58" ${s.printMode === 'thermal-58' ? 'selected' : ''}>Thermal POS (58mm width)</option>
         </select>
-        <span class="help-text">Choose between standard office paper or roll receipt printer.</span>
+        <span class="help-text">Select format based on your counter printer.</span>
       </div>
     </div>
   `;
@@ -89,11 +98,10 @@ export function openSettings(state) {
   sidebar.style.display = 'flex';
 
   const closeBtn = sidebar.querySelector('#closeSettingsBtn');
-  closeBtn.addEventListener('click', () => {
+  closeBtn?.addEventListener('click', () => {
     sidebar.style.display = 'none';
   });
 
-  // Attach change listeners to all fields
   const inputs = sidebar.querySelectorAll('input, select');
   inputs.forEach(inp => {
     inp.addEventListener('input', scheduleSave);
@@ -104,6 +112,7 @@ export function openSettings(state) {
 function scheduleSave() {
   if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
   saveDebounceTimer = setTimeout(async () => {
+    const sheetsUrl = document.getElementById('setSheetsUrl')?.value?.trim() || '';
     const reg = parseFloat(document.getElementById('setRateReg')?.value) || 20;
     const exp = parseFloat(document.getElementById('setRateExp')?.value) || 35;
     const minW = parseFloat(document.getElementById('setMinWeight')?.value) || 5;
@@ -114,6 +123,7 @@ function scheduleSave() {
     const pMode = document.getElementById('setPrintMode')?.value || 'a4';
 
     const updates = {
+      googleSheetsUrl: sheetsUrl,
       rateRegular: reg,
       rateExpress: exp,
       minWeight: minW,

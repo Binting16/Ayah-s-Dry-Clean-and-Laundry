@@ -1,0 +1,186 @@
+/* BIR & Financial Records Tab Styles */
+
+.bir-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.bir-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.bir-title h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--primary-dark);
+}
+
+.bir-title p {
+  margin: 4px 0 0;
+  color: var(--ink-secondary);
+  font-size: 0.88rem;
+}
+
+.bir-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.year-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+}
+
+.year-select-wrap label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+}
+
+.year-select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  background: #FFFFFF;
+}
+
+/* Period Switcher Buttons */
+.bir-period-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.bir-period-btn {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink-secondary);
+  transition: all 0.15s ease;
+}
+
+.bir-period-btn:hover {
+  background: #E5ECEE;
+  color: var(--ink);
+}
+
+.bir-period-btn.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #FFFFFF;
+}
+
+/* Annual & Period Summary Metric Cards */
+.bir-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.bir-metric-card {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.bir-metric-val {
+  display: block;
+  font-size: 1.65rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--primary-dark);
+  line-height: 1.2;
+}
+
+.bir-metric-val.val-success { color: var(--success-dark); }
+.bir-metric-val.val-danger { color: var(--danger); }
+.bir-metric-val.val-muted { color: var(--ink-secondary); }
+
+.bir-metric-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* Sub-filter tabs in BIR Table */
+.bir-subtabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.bir-filter-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.bir-pill {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink-secondary);
+}
+
+.bir-pill.is-active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+}
+
+/* Audit Table Badges */
+.badge-audit-active {
+  background: var(--success-light);
+  color: var(--success-dark);
+}
+
+.badge-audit-deleted {
+  background: var(--danger-light);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+tr.row-deleted {
+  background: #FFF5F5;
+}
+
+tr.row-deleted td {
+  color: #7F1D1D;
+}

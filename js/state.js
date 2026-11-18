@@ -4,18 +4,22 @@ import { DEFAULT_SETTINGS } from './config.js';
  * Global reactive state container
  */
 export const state = {
-  transactions: [],     // Visible filtered transactions for the active tab
-  allActive: [],        // All active orders (non-released, non-voided)
-  allReleased: [],      // All completed orders (released, non-voided)
-  allVoided: [],        // All soft-deleted/voided orders
+  currentView: 'log',   // 'log' | 'bir'
+  selectedYear: new Date().getFullYear(),
+  transactions: [],     // Visible filtered transactions for the active tab/view
+  allActive: [],        // Non-deleted, non-released orders
+  allReleased: [],      // Non-deleted, released orders
+  allDeleted: [],       // Deleted / voided orders (visible in BIR tab)
   settings: { ...DEFAULT_SETTINGS },
-  currentTab: 'active', // 'active' | 'released' | 'voided'
+  currentTab: 'active', // 'active' | 'released' (within Laundry Log view)
+  birFilter: 'all',     // 'all' | 'completed' | 'deleted' (within BIR view)
   searchQuery: '',
   dateFilter: {
     from: null,
     to: null
   },
-  dbMode: 'loading',    // 'firestore' | 'localStorage' | 'loading'
+  dbMode: 'loading',    // 'google-sheets' | 'localStorage' | 'loading'
+  recap: null,          // { daily, monthly, annual }
 
   listeners: new Set(),
 

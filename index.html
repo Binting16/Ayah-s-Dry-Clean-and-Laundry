@@ -18,23 +18,20 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/form.css">
   <link rel="stylesheet" href="css/table.css">
+  <link rel="stylesheet" href="css/bir.css">
   <link rel="stylesheet" href="css/receipt.css">
   <link rel="stylesheet" href="css/responsive.css">
-
-  <!-- Firebase SDK (Compat scripts for pure browser static hosting) -->
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <div class="app" id="app">
 
-    <!-- Loading banner -->
-    <div id="loadingBanner" class="loading-banner">Loading laundry records…</div>
+    <!-- Loading State -->
+    <div id="loadingBanner" class="loading-banner">Connecting to Google Sheets…</div>
 
     <!-- LocalStorage / Offline mode banner -->
     <div id="dbBanner" class="db-banner" style="display: none;"></div>
 
-    <!-- Topbar Header -->
+    <!-- Header Topbar -->
     <header class="topbar" id="header">
       <div class="brand">
         <svg class="brand-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -50,34 +47,53 @@
       <button class="icon-btn settings-btn" id="settingsBtn" title="Shop Settings & Pricing" aria-label="Settings">⚙️</button>
     </header>
 
-    <!-- Stats Row -->
-    <section class="stats" id="statsSection"></section>
+    <!-- Top-Level Navigation Tabs -->
+    <nav class="top-nav" role="tablist">
+      <button class="top-nav-tab is-active" id="navTabLog" data-view="log">🧺 Laundry Log</button>
+      <button class="top-nav-tab" id="navTabBir" data-view="bir">📋 BIR & Financial Records</button>
+    </nav>
 
-    <!-- New Drop-off Form -->
-    <section class="panel" id="formSection">
-      <h2>New drop-off</h2>
-      <form id="addForm" class="add-form" novalidate></form>
-      <p class="hint" id="formHint"></p>
-    </section>
+    <!-- VIEW 1: LAUNDRY LOG (Operational Counter View) -->
+    <main id="viewLaundryLog" class="view-panel">
+      <!-- New Drop-off Form -->
+      <section class="panel" id="formSection">
+        <h2>New drop-off</h2>
+        <form id="addForm" class="add-form" novalidate></form>
+        <p class="hint" id="formHint"></p>
+      </section>
 
-    <!-- Transactions Table -->
-    <section class="panel table-panel" id="tableSection">
-      <div class="table-toolbar" id="tableToolbar"></div>
-      <div class="table-wrap">
-        <table>
-          <thead id="txHead"></thead>
-          <tbody id="txBody"></tbody>
-        </table>
-        <p class="empty-state" id="emptyState"></p>
-      </div>
-    </section>
+      <!-- Transactions Table -->
+      <section class="panel table-panel" id="tableSection">
+        <div class="table-toolbar" id="tableToolbar"></div>
+        <div class="table-wrap">
+          <table>
+            <thead id="txHead"></thead>
+            <tbody id="txBody"></tbody>
+          </table>
+          <p class="empty-state" id="emptyState"></p>
+        </div>
+      </section>
+    </main>
 
-    <!-- Reports Section -->
-    <section class="panel reports-panel" id="reportsSection"></section>
+    <!-- VIEW 2: BIR & FINANCIAL RECORDS (Tax, Auditing & Annual Recaps) -->
+    <main id="viewBirRecords" class="view-panel" style="display: none;">
+      <section class="panel bir-panel" id="birSection"></section>
+    </main>
 
   </div>
 
-  <!-- Settings Sidebar -->
+  <!-- Sticky Bottom Footer: Collected Today -->
+  <footer class="sticky-footer" id="stickyFooter">
+    <div class="footer-content">
+      <div class="footer-pill">
+        <span class="footer-label">COLLECTED TODAY</span>
+        <span class="footer-amount" id="footerCollectedToday">₱0</span>
+        <span class="footer-count" id="footerPaidCount">(0 paid orders)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Settings Drawer Sidebar -->
   <aside class="settings-sidebar" id="settingsSidebar" style="display: none;"></aside>
 
   <!-- Confirmation Modal Container -->
@@ -86,10 +102,10 @@
   <!-- Non-blocking Toasts Container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <!-- Printable Receipt Area (rendered during printing) -->
+  <!-- Printable Receipt Area -->
   <div id="receiptPrintArea" class="receipt-print-area"></div>
 
-  <!-- App Entry Module -->
+  <!-- App Bootstrap -->
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

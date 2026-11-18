@@ -1,7 +1,7 @@
 .app {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 24px 20px 80px;
+  padding: 24px 20px 100px; /* Extra bottom padding so content doesn't get covered by sticky footer */
 }
 
 /* Loading Banner */
@@ -62,9 +62,9 @@ header.topbar {
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  padding-bottom: 20px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .brand {
@@ -93,6 +93,40 @@ header.topbar {
   font-size: 0.88rem;
 }
 
+/* Top-Level Navigation Tabs */
+.top-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 2px;
+}
+
+.top-nav-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 12px 20px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -3px;
+  transition: all 0.15s ease;
+}
+
+.top-nav-tab:hover {
+  color: var(--ink);
+}
+
+.top-nav-tab.is-active {
+  color: var(--primary-dark);
+  border-bottom-color: var(--primary);
+}
+
 /* Panels */
 .panel {
   background: var(--surface);
@@ -107,4 +141,54 @@ header.topbar {
   font-size: 1.15rem;
   margin: 0 0 16px;
   color: var(--primary-dark);
+}
+
+/* Sticky Bottom Footer: Collected Today */
+.sticky-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #11383E;
+  color: #FFFFFF;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+  padding: 12px 20px;
+  z-index: 7000;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  justify-content: center;
+}
+
+.footer-content {
+  max-width: 1120px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footer-pill {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.footer-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #99F6E4;
+}
+
+.footer-amount {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.footer-count {
+  font-size: 0.85rem;
+  color: #CBD5E1;
 }

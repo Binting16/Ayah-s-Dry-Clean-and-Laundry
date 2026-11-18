@@ -1,12 +1,7 @@
 /* Tablet: 768px and below */
 @media (max-width: 768px) {
   .app {
-    padding: 16px 12px 60px;
-  }
-
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    padding: 16px 12px 110px;
   }
 
   .add-form {
@@ -32,19 +27,18 @@
     justify-content: space-between;
   }
 
-  .reports-header {
+  .settings-sidebar {
+    max-width: 100%;
+  }
+
+  .bir-header {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .reports-period-buttons {
-    width: 100%;
+  .bir-period-nav {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .settings-sidebar {
-    max-width: 100%;
   }
 }
 
@@ -59,8 +53,14 @@
     font-size: 1.4rem;
   }
 
-  .stats {
-    grid-template-columns: 1fr;
+  .top-nav {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .top-nav-tab {
+    padding: 10px 14px;
+    font-size: 0.95rem;
   }
 
   .add-form {
@@ -87,10 +87,20 @@
 
   .toast-container {
     width: 95vw;
-    bottom: 12px;
+    bottom: 80px; /* Above the sticky footer */
   }
 
   .modal-card {
     padding: 18px;
+  }
+
+  .footer-pill {
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+  }
+
+  .footer-amount {
+    font-size: 1.4rem;
   }
 }

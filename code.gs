@@ -1,0 +1,441 @@
+/**
+ * Ayah's Dry Clean and Laundry — Google Apps Script Backend (code.gs)
+ * Serves as the database API for the GitHub Pages frontend.
+ *
+ * Setup:
+ * 1. Open your Google Sheet.
+ * 2. Go to Extensions -> Apps Script.
+ * 3. Replace all code with this file.
+ * 4. Click Deploy -> New deployment -> Select type: Web app.
+ * 5. Set "Execute as: Me" and "Who has access: Anyone".
+ * 6. Copy the Web app URL and paste it into js/config.js (or into the Settings drawer in the app).
+ */
+
+const TIMEZONE = "Asia/Manila";
+
+// -----------------------------------------------------------------------------
+// Web App Entry Points
+// -----------------------------------------------------------------------------
+
+function doGet(e) {
+  return handleRequest(e);
+}
+
+function doPost(e) {
+  return handleRequest(e);
+}
+
+function handleRequest(e) {
+  const lock = LockService.getScriptLock();
+  // Wait up to 30 seconds for concurrent requests
+  lock.tryLock(30000);
+
+  try {
+    const params = (e && e.parameter) || {};
+    let postData = {};
+
+    if (e && e.postData && e.postData.contents) {
+      try {
+        postData = JSON.parse(e.postData.contents);
+      } catch (err) {
+        postData = {};
+      }
+    }
+
+    const action = params.action || postData.action;
+    let responseData = { success: false, error: "Invalid action" };
+
+    switch (action) {
+      case "ping":
+        responseData = { success: true, message: "Ayah Laundry API is online", time: new Date() };
+        break;
+
+      case "getSettings":
+        responseData = { success: true, settings: getSettings() };
+        break;
+
+      case "updateSettings":
+        responseData = { success: true, settings: updateSettings(postData.settings || {}) };
+        break;
+
+      case "getTransactions":
+        const year = params.year || postData.year || new Date().getFullYear();
+        const includeDeleted = params.includeDeleted === "true" || postData.includeDeleted === true;
+        responseData = { success: true, transactions: getTransactions(year, includeDeleted) };
+        break;
+
+      case "addTransaction":
+        responseData = { success: true, transaction: addTransaction(postData.transaction || {}) };
+        break;
+
+      case "updateTransaction":
+        responseData = { success: true, updated: updateTransaction(postData.id || postData.code, postData.updates || {}) };
+        break;
+
+      case "deleteTransaction":
+        responseData = { success: true, deleted: deleteTransaction(postData.id || postData.code, postData.reason || "Staff deleted") };
+        break;
+
+      case "getRecap":
+        const recapYear = params.year || postData.year || new Date().getFullYear();
+        responseData = { success: true, recap: calculateRecap(recapYear) };
+        break;
+
+      default:
+        responseData = { success: false, error: "Action not recognized: " + action };
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify(responseData))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Sheet Management & Initialization
+// -----------------------------------------------------------------------------
+
+function getOrCreateYearSheet(year) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetName = String(year);
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    const headers = [
+      "Code", "Timestamp", "Date", "Time", "Customer Name", "Phone",
+      "Service", "Weight (kg)", "Rate (PHP)", "Price (PHP)",
+      "Payment Status", "Paid At", "Order Status", "Record Status",
+      "Delete Reason", "Deleted At", "Notes"
+    ];
+
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length)
+      .setBackground("#1F6F78")
+      .setFontColor("#FFFFFF")
+      .setFontWeight("bold");
+
+    sheet.setFrozenRows(1);
+
+    for (let i = 1; i <= headers.length; i++) {
+      sheet.setColumnWidth(i, 130);
+    }
+  }
+
+  return sheet;
+}
+
+function getSettingsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("Settings");
+
+  if (!sheet) {
+    sheet = ss.insertSheet("Settings");
+    sheet.getRange(1, 1, 1, 2).setValues([["Key", "Value"]]);
+    sheet.getRange(1, 1, 1, 2).setBackground("#1F6F78").setFontColor("#FFFFFF").setFontWeight("bold");
+
+    const defaultSettings = [
+      ["rateRegular", 20],
+      ["rateExpress", 35],
+      ["minWeight", 5],
+      ["counter", 0],
+      ["businessName", "Ayah's Dry Clean and Laundry"],
+      ["businessAddress", "Your Address Here"],
+      ["businessTIN", "000-000-000-000"],
+      ["businessPhone", "0900 000 0000"],
+      ["printMode", "a4"]
+    ];
+
+    sheet.getRange(2, 1, defaultSettings.length, 2).setValues(defaultSettings);
+  }
+
+  return sheet;
+}
+
+// -----------------------------------------------------------------------------
+// Settings Functions
+// -----------------------------------------------------------------------------
+
+function getSettings() {
+  const sheet = getSettingsSheet();
+  const data = sheet.getDataRange().getValues();
+  const settings = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const key = String(data[i][0]).trim();
+    let val = data[i][1];
+    if (key === "counter" || key === "rateRegular" || key === "rateExpress" || key === "minWeight") {
+      val = Number(val) || 0;
+    }
+    settings[key] = val;
+  }
+
+  return settings;
+}
+
+function updateSettings(newSettings) {
+  const sheet = getSettingsSheet();
+  const data = sheet.getDataRange().getValues();
+  const keys = Object.keys(newSettings);
+
+  for (let k = 0; k < keys.length; k++) {
+    const key = keys[k];
+    const val = newSettings[key];
+    let found = false;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === key) {
+        sheet.getRange(i + 1, 2).setValue(val);
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      sheet.appendRow([key, val]);
+    }
+  }
+
+  return getSettings();
+}
+
+// -----------------------------------------------------------------------------
+// Transaction Functions
+// -----------------------------------------------------------------------------
+
+function generateCode(counter) {
+  const safeCounter = Math.max(1, parseInt(counter, 10) || 1);
+  const block = Math.floor((safeCounter - 1) / 999) + 1;
+  const number = ((safeCounter - 1) % 999) + 1;
+
+  let s = '';
+  let n = block;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return s + number;
+}
+
+function addTransaction(tx) {
+  const settings = getSettings();
+  const nextCounter = (Number(settings.counter) || 0) + 1;
+  const code = tx.code || generateCode(nextCounter);
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const sheet = getOrCreateYearSheet(year);
+
+  // Automatic Date and Time in Asia/Manila (UTC+8)
+  const dateStr = Utilities.formatDate(now, TIMEZONE, "yyyy-MM-dd");
+  const timeStr = Utilities.formatDate(now, TIMEZONE, "HH:mm:ss");
+
+  const isPaid = Boolean(tx.paid);
+  const paidAtStr = isPaid
+    ? (tx.paidAt ? Utilities.formatDate(new Date(tx.paidAt), TIMEZONE, "yyyy-MM-dd HH:mm:ss") : (dateStr + " " + timeStr))
+    : "";
+
+  const row = [
+    code,
+    now.getTime(),
+    dateStr,
+    timeStr,
+    tx.name || "",
+    tx.phone || "",
+    tx.type === "express" ? "Express" : "Regular",
+    Number(tx.weight) || 0,
+    tx.type === "express" ? (settings.rateExpress || 35) : (settings.rateRegular || 20),
+    Math.round(Number(tx.price)) || 0,
+    isPaid ? "PAID" : "UNPAID",
+    paidAtStr,
+    tx.status || "Received",
+    "ACTIVE",   // Record Status
+    "",         // Delete Reason
+    "",         // Deleted At
+    tx.notes || ""
+  ];
+
+  sheet.appendRow(row);
+
+  // Update sequential counter in settings
+  updateSettings({ counter: nextCounter });
+
+  return {
+    code: code,
+    createdAt: now.getTime(),
+    date: dateStr,
+    time: timeStr,
+    name: tx.name,
+    phone: tx.phone,
+    type: tx.type,
+    weight: tx.weight,
+    price: tx.price,
+    paid: isPaid,
+    paidAt: isPaid ? now.getTime() : null,
+    status: tx.status || "Received",
+    recordStatus: "ACTIVE"
+  };
+}
+
+function getTransactions(year, includeDeleted) {
+  const sheet = getOrCreateYearSheet(year);
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+
+  const results = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const recordStatus = String(row[13] || "ACTIVE").toUpperCase();
+
+    if (!includeDeleted && recordStatus === "DELETED") {
+      continue;
+    }
+
+    results.push({
+      rowIndex: i + 1,
+      code: String(row[0]),
+      createdAt: Number(row[1]) || new Date(row[2] + " " + row[3]).getTime(),
+      date: String(row[2]),
+      time: String(row[3]),
+      name: String(row[4]),
+      phone: String(row[5]),
+      type: String(row[6]).toLowerCase() === "express" ? "express" : "regular",
+      weight: Number(row[7]),
+      rate: Number(row[8]),
+      price: Number(row[9]),
+      paid: String(row[10]).toUpperCase() === "PAID",
+      paidAt: row[11] ? new Date(row[11]).getTime() : null,
+      status: String(row[12] || "Received"),
+      recordStatus: recordStatus,
+      deleteReason: String(row[14] || ""),
+      deletedAt: row[15] ? new Date(row[15]).getTime() : null,
+      notes: String(row[16] || "")
+    });
+  }
+
+  // Newest transactions first
+  return results.reverse();
+}
+
+function updateTransaction(identifier, updates) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const sheet = getOrCreateYearSheet(year);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(identifier)) {
+      const rowIndex = i + 1;
+
+      if (updates.status !== undefined) {
+        sheet.getRange(rowIndex, 13).setValue(updates.status);
+      }
+      if (updates.paid !== undefined) {
+        const isPaid = Boolean(updates.paid);
+        sheet.getRange(rowIndex, 11).setValue(isPaid ? "PAID" : "UNPAID");
+        const paidStr = isPaid ? Utilities.formatDate(now, TIMEZONE, "yyyy-MM-dd HH:mm:ss") : "";
+        sheet.getRange(rowIndex, 12).setValue(paidStr);
+      }
+      if (updates.notes !== undefined) {
+        sheet.getRange(rowIndex, 17).setValue(updates.notes);
+      }
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function deleteTransaction(identifier, reason) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const sheet = getOrCreateYearSheet(year);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(identifier)) {
+      const rowIndex = i + 1;
+      sheet.getRange(rowIndex, 14).setValue("DELETED");
+      sheet.getRange(rowIndex, 15).setValue(reason || "Staff deleted");
+      sheet.getRange(rowIndex, 16).setValue(Utilities.formatDate(now, TIMEZONE, "yyyy-MM-dd HH:mm:ss"));
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// -----------------------------------------------------------------------------
+// Recap Engine: Daily, Weekly, Monthly, and Annual Totals
+// -----------------------------------------------------------------------------
+
+function calculateRecap(year) {
+  const sheet = getOrCreateYearSheet(year);
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return {
+      daily: {},
+      weekly: {},
+      monthly: {},
+      annual: { totalOrders: 0, totalWeight: 0, grossSales: 0, collected: 0, unpaid: 0, deleted: 0 }
+    };
+  }
+
+  const annual = { totalOrders: 0, totalWeight: 0, grossSales: 0, collected: 0, unpaid: 0, deleted: 0 };
+  const daily = {};
+  const monthly = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const dateStr = String(row[2]); // YYYY-MM-DD
+    const monthStr = dateStr.substring(0, 7); // YYYY-MM
+    const weight = Number(row[7]) || 0;
+    const price = Number(row[9]) || 0;
+    const isPaid = String(row[10]).toUpperCase() === "PAID";
+    const isDeleted = String(row[13]).toUpperCase() === "DELETED";
+
+    if (isDeleted) {
+      annual.deleted++;
+      continue;
+    }
+
+    annual.totalOrders++;
+    annual.totalWeight += weight;
+    annual.grossSales += price;
+    if (isPaid) annual.collected += price;
+    else annual.unpaid += price;
+
+    // Daily breakdown
+    if (!daily[dateStr]) {
+      daily[dateStr] = { orders: 0, weight: 0, sales: 0, collected: 0, unpaid: 0 };
+    }
+    daily[dateStr].orders++;
+    daily[dateStr].weight += weight;
+    daily[dateStr].sales += price;
+    if (isPaid) daily[dateStr].collected += price;
+    else daily[dateStr].unpaid += price;
+
+    // Monthly breakdown
+    if (!monthly[monthStr]) {
+      monthly[monthStr] = { orders: 0, weight: 0, sales: 0, collected: 0, unpaid: 0 };
+    }
+    monthly[monthStr].orders++;
+    monthly[monthStr].weight += weight;
+    monthly[monthStr].sales += price;
+    if (isPaid) monthly[monthStr].collected += price;
+    else monthly[monthStr].unpaid += price;
+  }
+
+  return { daily, monthly, annual };
+}

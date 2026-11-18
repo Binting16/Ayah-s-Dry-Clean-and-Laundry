@@ -1,10 +1,11 @@
-import { STATUS_FLOW, VOID_REASONS } from '../config.js';
-import { formatDate, formatDateTime, parseDate } from '../utils/dates.js';
+import { STATUS_FLOW, DELETE_REASONS } from '../config.js';
+import { formatDateTime, parseDate } from '../utils/dates.js';
 import { formatPHP } from '../utils/currency.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { showToast } from './toast.js';
 import { showModal } from './modal.js';
 import { printReceipt } from './receipt.js';
+import { renderFooter } from './footer.js';
 
 let appState = null;
 let appDb = null;
@@ -17,8 +18,8 @@ export function initTable(state, db) {
   if (toolbar) {
     toolbar.innerHTML = `
       <div class="table-header-info">
-        <h2>Transactions</h2>
-        <p class="table-subtitle" id="tableSubtitle"></p>
+        <h2>Active & Released Orders</h2>
+        <p class="table-subtitle" id="tableSubtitle">Track every drop-off from intake to customer pickup.</p>
       </div>
 
       <div class="table-filters">
@@ -34,7 +35,7 @@ export function initTable(state, db) {
     `;
   }
 
-  // Add tabs container before table if not present
+  // Create Tabs container for Laundry Log view
   let tabsContainer = document.getElementById('tableTabs');
   if (!tabsContainer) {
     tabsContainer = document.createElement('div');
@@ -50,9 +51,8 @@ export function initTable(state, db) {
   }
 
   tabsContainer.innerHTML = `
-    <button class="tab is-active" data-tab="active">Active <span class="tab-count" id="countActive">0</span></button>
-    <button class="tab" data-tab="released">Released <span class="tab-count" id="countReleased">0</span></button>
-    <button class="tab" data-tab="voided">Voided <span class="tab-count" id="countVoided">0</span></button>
+    <button class="tab is-active" data-tab="active">Active Orders <span class="tab-count" id="countActive">0</span></button>
+    <button class="tab" data-tab="released">Released Orders <span class="tab-count" id="countReleased">0</span></button>
   `;
 
   // Wire tabs
@@ -107,18 +107,15 @@ export function renderTable(state) {
   const dateFrom = state.dateFilter.from;
   const dateTo = state.dateFilter.to;
 
-  // Filter tab list
-  let sourceList = [];
-  if (currentTab === 'released') {
-    sourceList = state.allReleased || [];
-  } else if (currentTab === 'voided') {
-    sourceList = state.allVoided || [];
-  } else {
-    sourceList = state.allActive || [];
-  }
+  const sourceList = currentTab === 'released'
+    ? (state.allReleased || [])
+    : (state.allActive || []);
 
-  // Apply search and date range
-  const filtered = sourceList.filter(t => {
+  // Filter out any deleted records from this view
+  const nonDeleted = sourceList.filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED');
+
+  // Filter by search query and date
+  const filtered = nonDeleted.filter(t => {
     if (query) {
       const matchCode = (t.code || '').toLowerCase().includes(query);
       const matchName = (t.name || '').toLowerCase().includes(query);
@@ -138,52 +135,28 @@ export function renderTable(state) {
     return true;
   });
 
-  // Update tab counters
+  // Update counters
   const countActiveEl = document.getElementById('countActive');
   const countReleasedEl = document.getElementById('countReleased');
-  const countVoidedEl = document.getElementById('countVoided');
-  if (countActiveEl) countActiveEl.textContent = (state.allActive || []).length;
-  if (countReleasedEl) countReleasedEl.textContent = (state.allReleased || []).length;
-  if (countVoidedEl) countVoidedEl.textContent = (state.allVoided || []).length;
+  if (countActiveEl) countActiveEl.textContent = (state.allActive || []).filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED').length;
+  if (countReleasedEl) countReleasedEl.textContent = (state.allReleased || []).filter(t => String(t.recordStatus).toUpperCase() !== 'DELETED').length;
 
   // Update active tab buttons
   document.querySelectorAll('#tableTabs .tab').forEach(b => {
     b.classList.toggle('is-active', b.dataset.tab === currentTab);
   });
 
-  // Update subtitle
-  const subtitleEl = document.getElementById('tableSubtitle');
-  if (subtitleEl) {
-    if (currentTab === 'released') {
-      subtitleEl.textContent = 'Orders completed and released to customers.';
-    } else if (currentTab === 'voided') {
-      subtitleEl.textContent = 'Voided and cancelled records kept for BIR auditing compliance.';
-    } else {
-      subtitleEl.textContent = 'Current in-progress drop-offs (Received, Ongoing, Finished).';
-    }
-  }
-
-  // Update Table Header
+  // Table header
   const head = document.getElementById('txHead');
   if (head) {
-    if (currentTab === 'voided') {
-      head.innerHTML = `
-        <tr>
-          <th>Code</th><th>Date</th><th>Customer</th><th>Weight</th>
-          <th>Service</th><th>Price</th><th>Void Reason</th><th>Void Date</th><th>Actions</th>
-        </tr>
-      `;
-    } else {
-      head.innerHTML = `
-        <tr>
-          <th>Code</th><th>Date</th><th>Customer</th><th>Weight</th>
-          <th>Service</th><th>Price</th><th>Payment</th><th>Status</th><th>Actions</th>
-        </tr>
-      `;
-    }
+    head.innerHTML = `
+      <tr>
+        <th>Code</th><th>Date & Time</th><th>Customer</th><th>Weight</th>
+        <th>Service</th><th>Price</th><th>Payment</th><th>Status</th><th>Actions</th>
+      </tr>
+    `;
   }
 
-  // Render Rows
   const body = document.getElementById('txBody');
   const emptyState = document.getElementById('emptyState');
   if (!body) return;
@@ -193,11 +166,9 @@ export function renderTable(state) {
   if (filtered.length === 0) {
     if (emptyState) {
       emptyState.style.display = 'block';
-      emptyState.textContent = currentTab === 'voided'
-        ? 'No voided records found.'
-        : currentTab === 'released'
-          ? 'No released orders found.'
-          : 'No active orders right now. Add a new drop-off above.';
+      emptyState.textContent = currentTab === 'released'
+        ? 'No released orders found.'
+        : 'No active orders right now. Add a new drop-off above.';
     }
     return;
   }
@@ -206,127 +177,124 @@ export function renderTable(state) {
 
   for (const t of filtered) {
     const tr = document.createElement('tr');
-    if (t.voided) tr.classList.add('is-voided');
 
-    if (currentTab === 'voided') {
-      tr.innerHTML = `
-        <td class="no-strike"><span class="code-tag" title="Preview receipt">${t.code}</span></td>
-        <td>${formatDate(t.createdAt)}</td>
-        <td>
-          <div class="customer-cell">
-            <span class="customer-name">${escapeHtml(t.name)}</span>
-            <span class="customer-phone">${t.phone ? escapeHtml(t.phone) : '—'}</span>
-          </div>
-        </td>
-        <td>${t.weight} kg</td>
-        <td><span class="badge type-${t.type}">${t.type === 'express' ? 'Express' : 'Regular'}</span></td>
-        <td class="price-text">${formatPHP(t.price)}</td>
-        <td class="no-strike"><span class="badge" style="background:#FEE2E2; color:#B91C1C;">${escapeHtml(t.voidReason || 'Voided')}</span></td>
-        <td>${formatDateTime(t.voidedAt || t.updatedAt)}</td>
-        <td class="no-strike">
+    tr.innerHTML = `
+      <td><span class="code-tag" title="Print/Preview receipt">${t.code}</span></td>
+      <td>${formatDateTime(t.createdAt)}</td>
+      <td>
+        <div class="customer-cell">
+          <span class="customer-name">${escapeHtml(t.name)}</span>
+          <span class="customer-phone">${t.phone ? escapeHtml(t.phone) : '—'}</span>
+        </div>
+      </td>
+      <td>${t.weight} kg</td>
+      <td><span class="badge type-${t.type}">${t.type === 'express' ? 'Express' : 'Regular'}</span></td>
+      <td class="price-text">${formatPHP(t.price)}</td>
+      <td class="paid-cell"></td>
+      <td class="status-cell"></td>
+      <td>
+        <div class="table-actions">
           <button class="icon-btn print-btn" title="Print Receipt">🖨️</button>
-        </td>
-      `;
-    } else {
-      tr.innerHTML = `
-        <td><span class="code-tag" title="Preview receipt">${t.code}</span></td>
-        <td>${formatDate(t.createdAt)}</td>
-        <td>
-          <div class="customer-cell">
-            <span class="customer-name">${escapeHtml(t.name)}</span>
-            <span class="customer-phone">${t.phone ? escapeHtml(t.phone) : '—'}</span>
-          </div>
-        </td>
-        <td>${t.weight} kg</td>
-        <td><span class="badge type-${t.type}">${t.type === 'express' ? 'Express' : 'Regular'}</span></td>
-        <td class="price-text">${formatPHP(t.price)}</td>
-        <td class="paid-cell"></td>
-        <td class="status-cell"></td>
-        <td>
-          <div class="table-actions">
-            <button class="icon-btn print-btn" title="Print Receipt">🖨️</button>
-            <button class="icon-btn del void-btn" title="Void Transaction">🚫</button>
-          </div>
-        </td>
-      `;
+          <button class="icon-btn del delete-btn" title="Delete from Log">🗑️</button>
+        </div>
+      </td>
+    `;
 
-      // Paid toggle button
-      const paidCell = tr.querySelector('.paid-cell');
-      const paidBtn = document.createElement('button');
-      paidBtn.className = 'paid-toggle ' + (t.paid ? 'is-paid' : 'is-unpaid');
-      paidBtn.innerHTML = t.paid ? '<span>Paid ✓</span>' : '<span>Unpaid</span>';
-      paidBtn.addEventListener('click', async () => {
-        const nextPaid = !t.paid;
-        await appDb.updateTransaction(t.id || t.code, {
-          paid: nextPaid,
-          paidAt: nextPaid ? Date.now() : null
-        });
-        t.paid = nextPaid;
-        t.paidAt = nextPaid ? Date.now() : null;
-        showToast(`Order ${t.code} marked as ${nextPaid ? 'Paid' : 'Unpaid'}.`, 'info');
-        renderTable(appState);
+    // Paid toggle button
+    const paidCell = tr.querySelector('.paid-cell');
+    const paidBtn = document.createElement('button');
+    paidBtn.className = 'paid-toggle ' + (t.paid ? 'is-paid' : 'is-unpaid');
+    paidBtn.innerHTML = t.paid ? '<span>Paid ✓</span>' : '<span>Unpaid</span>';
+
+    paidBtn.addEventListener('click', async () => {
+      const nextPaid = !t.paid;
+      const now = Date.now();
+      await appDb.updateTransaction(t.code, {
+        paid: nextPaid,
+        paidAt: nextPaid ? now : null
       });
-      paidCell.appendChild(paidBtn);
 
-      if (t.paid && t.paidAt) {
-        const stamp = document.createElement('div');
-        stamp.className = 'paid-date';
-        stamp.textContent = formatDateTime(t.paidAt);
-        paidCell.appendChild(stamp);
-      }
+      t.paid = nextPaid;
+      t.paidAt = nextPaid ? now : null;
 
-      // Status selector
-      const statusCell = tr.querySelector('.status-cell');
-      const sel = document.createElement('select');
-      sel.className = 'status-select status-' + (t.status || 'Received').toLowerCase();
-      for (const s of STATUS_FLOW) {
-        const opt = document.createElement('option');
-        opt.value = s;
-        opt.textContent = s;
-        if (s === t.status) opt.selected = true;
-        sel.appendChild(opt);
-      }
-      sel.addEventListener('change', async (e) => {
-        const newStatus = e.target.value;
-        await appDb.updateTransaction(t.id || t.code, { status: newStatus });
-        t.status = newStatus;
+      showToast(`Order ${t.code} marked as ${nextPaid ? 'Paid' : 'Unpaid'}.`, 'info');
+      renderTable(appState);
+      renderFooter(appState);
+    });
+    paidCell.appendChild(paidBtn);
 
-        // Re-bucket
-        const all = await appDb.getTransactions();
-        appState.allActive = all.filter(item => !item.voided && item.status !== 'Released');
-        appState.allReleased = all.filter(item => !item.voided && item.status === 'Released');
-        showToast(`Order ${t.code} updated to ${newStatus}.`, 'info');
-        renderTable(appState);
-      });
-      statusCell.appendChild(sel);
-
-      // Void action
-      const voidBtn = tr.querySelector('.void-btn');
-      if (voidBtn) {
-        voidBtn.addEventListener('click', () => {
-          showModal({
-            title: `Void Order ${t.code}?`,
-            message: `This will mark the order as voided. In compliance with BIR audit guidelines, the transaction record is kept in the Voided archive.`,
-            confirmLabel: 'Void Transaction',
-            confirmStyle: 'danger',
-            requireReason: true,
-            reasonOptions: VOID_REASONS,
-            onConfirm: async (reason) => {
-              await appDb.voidTransaction(t.id || t.code, reason);
-              showToast(`Order ${t.code} has been voided.`, 'info');
-
-              const all = await appDb.getTransactions();
-              appState.allActive = all.filter(item => !item.voided && item.status !== 'Released');
-              appState.allReleased = all.filter(item => !item.voided && item.status === 'Released');
-              appState.allVoided = await appDb.getVoidedTransactions();
-              renderTable(appState);
-            }
-          });
-        });
-      }
+    if (t.paid && t.paidAt) {
+      const stamp = document.createElement('div');
+      stamp.className = 'paid-date';
+      stamp.textContent = formatDateTime(t.paidAt);
+      paidCell.appendChild(stamp);
     }
 
-    // Print receipt action
+    // Status selector
+    const statusCell = tr.querySelector('.status-cell');
+    const sel = document.createElement('select');
+    sel.className = 'status-select status-' + (t.status || 'Received').toLowerCase();
+    for (const s of STATUS_FLOW) {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      if (s === t.status) opt.selected = true;
+      sel.appendChild(opt);
+    }
+
+    sel.addEventListener('change', async (e) => {
+      const newStatus = e.target.value;
+      await appDb.updateTransaction(t.code, { status: newStatus });
+      t.status = newStatus;
+
+      // Re-bucket in memory
+      if (newStatus === 'Released') {
+        appState.allActive = appState.allActive.filter(item => item.code !== t.code);
+        if (!appState.allReleased.some(item => item.code === t.code)) {
+          appState.allReleased.unshift(t);
+        }
+      } else {
+        appState.allReleased = appState.allReleased.filter(item => item.code !== t.code);
+        if (!appState.allActive.some(item => item.code === t.code)) {
+          appState.allActive.unshift(t);
+        }
+      }
+
+      showToast(`Order ${t.code} updated to ${newStatus}.`, 'info');
+      renderTable(appState);
+    });
+    statusCell.appendChild(sel);
+
+    // Delete action (Removes permanently from staff view, preserved in BIR)
+    const deleteBtn = tr.querySelector('.delete-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        showModal({
+          title: `Delete Order ${t.code}?`,
+          message: `This will remove the transaction from your active Laundry Log. A copy will remain permanently archived in Google Sheets and the BIR Records tab for tax compliance.`,
+          confirmLabel: 'Delete Order',
+          confirmStyle: 'danger',
+          requireReason: true,
+          reasonOptions: DELETE_REASONS,
+          onConfirm: async (reason) => {
+            await appDb.deleteTransaction(t.code, reason);
+            t.recordStatus = 'DELETED';
+            t.deleteReason = reason;
+
+            // Remove from active/released arrays
+            appState.allActive = appState.allActive.filter(item => item.code !== t.code);
+            appState.allReleased = appState.allReleased.filter(item => item.code !== t.code);
+            appState.allDeleted.unshift(t);
+
+            showToast(`Order ${t.code} removed from workspace.`, 'info');
+            renderTable(appState);
+            renderFooter(appState);
+          }
+        });
+      });
+    }
+
+    // Print Receipt
     const printBtn = tr.querySelector('.print-btn');
     if (printBtn) {
       printBtn.addEventListener('click', () => {
@@ -334,7 +302,7 @@ export function renderTable(state) {
       });
     }
 
-    // Clicking code tag opens print preview too
+    // Clicking code tag also prints/previews receipt
     const codeTag = tr.querySelector('.code-tag');
     if (codeTag) {
       codeTag.addEventListener('click', () => {

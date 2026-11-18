@@ -3,6 +3,7 @@ import { validateDropOff } from '../utils/validation.js';
 import { showToast } from './toast.js';
 import { printReceipt } from './receipt.js';
 import { escapeHtml } from '../utils/sanitize.js';
+import { renderFooter } from './footer.js';
 
 let appState = null;
 let appDb = null;
@@ -129,7 +130,7 @@ export function initForm(state, db) {
     }
   });
 
-  // Form submission
+  // Form submission — Date & Time are fully automatic!
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (hintEl) hintEl.textContent = '';
@@ -167,14 +168,12 @@ export function initForm(state, db) {
       weightInput.placeholder = appState.settings.minWeight || 5;
       suggestionsList.style.display = 'none';
 
-      // Refresh transactions in state
-      const all = await appDb.getTransactions();
-      appState.allActive = all.filter(t => !t.voided && t.status !== 'Released');
-      appState.allReleased = all.filter(t => !t.voided && t.status === 'Released');
-      appState.allVoided = await appDb.getVoidedTransactions();
+      // Refresh in-memory lists
+      appState.allActive.unshift(newTx);
       appState.notify();
+      renderFooter(appState);
 
-      // Show toast with print action
+      // Toast with instant receipt print action
       showToast(`Order ${newTx.code} added successfully!`, 'success', 6000, [
         {
           label: '🖨️ Print Receipt',
@@ -183,7 +182,7 @@ export function initForm(state, db) {
       ]);
     } catch (err) {
       console.error('Failed to add transaction:', err);
-      showToast('Could not save transaction. Please try again.', 'error');
+      showToast('Could not save transaction. Please check connection.', 'error');
     }
   });
 }
